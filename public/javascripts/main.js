@@ -81,8 +81,6 @@ class Camera {
         this.v_up = [0, 1,0];
         this.dir = [0, 0, 1];
         this.zoom = 1;
-        this.speed_multi = .5;
-        this.rotation_speed_multi =.1;
         this.theta_x = 0.0;
         this.theta_y = 0.0;
         this.omega_x = 0.0;
@@ -97,16 +95,17 @@ class Camera {
             cam_rise: [0,1,0],
             cam_fall: [0,-1,0],
         }
+        let move_slider = document.getElementById("movement_speed");
         Object.keys(settings).forEach((k) => {
-            
-            document.getElementById(k).onmousedown = (ev) => {Vec3.scale(cam.velocity, Vec3.create(...settings[k]), cam.speed_multi); };
+            document.getElementById(k).onmousedown = (ev) => {Vec3.scale(cam.velocity, Vec3.create(...settings[k]), parseFloat(move_slider.value)); };
             document.getElementById(k).onmouseup = (ev) => {cam.velocity = [0,0,0]};
         });
+        let get_rot_speed = function() { return parseFloat(document.getElementById("rotate_speed").value) };
         let angles = {
-            cam_tilt_up: (ev) => {cam.omega_x = this.rotation_speed_multi},
-            cam_tilt_down: (ev) => {cam.omega_x = -this.rotation_speed_multi},
-            cam_tilt_left: (ev) => {cam.omega_y = this.rotation_speed_multi},
-            cam_tilt_right: (ev) => {cam.omega_y = -this.rotation_speed_multi},  
+            cam_tilt_up: (ev) => {cam.omega_x = get_rot_speed()},
+            cam_tilt_down: (ev) => {cam.omega_x = -get_rot_speed()},
+            cam_tilt_left: (ev) => {cam.omega_y = get_rot_speed()},
+            cam_tilt_right: (ev) => {cam.omega_y = -get_rot_speed()},  
         }
         Object.keys(angles).forEach((k) => {
             document.getElementById(k).onmousedown = angles[k];
