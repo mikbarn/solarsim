@@ -121,13 +121,11 @@ class Camera {
     }
     
     get matrix() {
-        let mat = Mat4.perspective(Mat4.identity(), 45, 1, 1.0, 1000);
+        let mat = Mat4.perspective(Mat4.identity(), 45, aspect, 1.0, 1000);
         let mrot = Mat4.identity(), mtran = Mat4.identity();
         Mat4.rotate(mrot, mrot, this.theta_x, Vec3.create(1, 0, 0));
         Mat4.rotate(mrot, mrot, this.theta_y, Vec3.create(0, 1, 0));
         Mat4.translate(mtran, mtran, this.pos);
-
-        let m = Mat4.multiply(mat, mat, mrot);
         Mat4.multiply(mat, mat, mtran);
         return mat;
     }
@@ -219,6 +217,7 @@ class Renderer {
     draw(gl) {
         gl.useProgram(this.program); 
         gl.viewport(0,0, gl.canvas.width, gl.canvas.height);
+        aspect = gl.canvas.width / gl.canvas.height;
         gl.clearColor(0,0,0,0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.enable(gl.DEPTH_TEST);
@@ -237,7 +236,7 @@ class Renderer {
         }
     }
 }
-
+var aspect = 1;
 var cam = new Camera();
 var sim_paused = false;
 async function start() {

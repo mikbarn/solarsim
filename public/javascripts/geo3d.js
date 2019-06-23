@@ -1,19 +1,5 @@
 import {Vec3, Mat4, Quat} from "./mb-matrix.js";
 
-class Body {
-    constructor(mesh, pos, orient, omega = 0.0) {
-        this.mesh = mesh;
-        this.pos = pos;
-        this.orient = orient;
-        this.omega = omega;
-    }
-
-    update(time_delta) {
-        
-    }
-}
-
-
 
 class TriMesh {
     constructor() {
@@ -65,11 +51,10 @@ function genUnitSphereMesh(lat, long) {
                 tri_idxs.push(m, m+vertices_per_lat, k+vertices_per_lat);
                 tri_idxs.push(m, k+vertices_per_lat, k); 
             }
-
         }
     }
     
-    console.log('VPL ' + vertices_per_lat);
+    //console.log('VPL ' + vertices_per_lat);
     
     for (let i=vertices_per_lat; i>0; i--) {
         tri_idxs.push(sp_idx-i, sp_idx, (sp_idx - i + 1) < sp_idx? (sp_idx - i+1): sp_idx - vertices_per_lat)
