@@ -1,0 +1,19 @@
+body {
+  padding: 50px;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+}
+
+a {
+  color: #00B7FF;
+}
+
+#canvas_1 {
+    width:500px;
+    height:500px;
+    background: black;
+}
+
+#cam_controls {
+  float: left;
+  max-width: 200px;
+}

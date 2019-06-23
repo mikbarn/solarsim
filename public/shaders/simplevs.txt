@@ -1,0 +1,15 @@
+uniform mat4 model_matrix;
+uniform mat4 view_matrix;
+attribute vec4 a_position;
+attribute vec2 a_tex_coord;
+
+varying vec2 v_tex_coord;
+
+uniform sampler2D uSampler;
+
+void main() {    
+    v_tex_coord = a_tex_coord;
+    gl_Position = view_matrix * model_matrix * a_position;
+    gl_PointSize = 2.0;
+    
+}
