@@ -82,6 +82,11 @@ class Camera {
         this.dir = [0, 0, 1];
         this.zoom = 1;
         this.speed_multi = .5;
+        this.rotation_speed_multi =.1;
+        this.theta_x = 0.0;
+        this.theta_y = 0.0;
+        this.omega_x = 0.0;
+        this.omega_y = 0.0;
         
         let cam = this;
         let settings = {
@@ -93,20 +98,38 @@ class Camera {
             cam_fall: [0,-1,0],
         }
         Object.keys(settings).forEach((k) => {
-            let key = k;
-            document.getElementById(k).onmousedown = (ev) => {Vec3.scale(cam.velocity, Vec3.create(...settings[key]), cam.speed_multi); };
+            
+            document.getElementById(k).onmousedown = (ev) => {Vec3.scale(cam.velocity, Vec3.create(...settings[k]), cam.speed_multi); };
             document.getElementById(k).onmouseup = (ev) => {cam.velocity = [0,0,0]};
+        });
+        let angles = {
+            cam_tilt_up: (ev) => {cam.omega_x = this.rotation_speed_multi},
+            cam_tilt_down: (ev) => {cam.omega_x = -this.rotation_speed_multi},
+            cam_tilt_left: (ev) => {cam.omega_y = this.rotation_speed_multi},
+            cam_tilt_right: (ev) => {cam.omega_y = -this.rotation_speed_multi},  
+        }
+        Object.keys(angles).forEach((k) => {
+            document.getElementById(k).onmousedown = angles[k];
+            document.getElementById(k).onmouseup = (ev) => {cam.omega_x = 0.0, cam.omega_y = 0.0};
         });
     }
 
     update(delta) {
         this.pos = Vec3.add(this.pos, this.pos, this.velocity);
-        console.log('Cam: ', this.pos, this.velocity);
+        this.theta_x += this.omega_x;
+        this.theta_y += this.omega_y;
+        console.log('Cam: ', this.pos, this.velocity, this.theta_x, this.theta_y);
     }
     
     get matrix() {
-        let mat = Mat4.perspective(Mat4.identity(), 90, 1, 1.0, 1000);
-        Mat4.translate(mat, mat, this.pos);
+        let mat = Mat4.perspective(Mat4.identity(), 45, 1, 1.0, 1000);
+        let mrot = Mat4.identity(), mtran = Mat4.identity();
+        Mat4.rotate(mrot, mrot, this.theta_x, Vec3.create(1, 0, 0));
+        Mat4.rotate(mrot, mrot, this.theta_y, Vec3.create(0, 1, 0));
+        Mat4.translate(mtran, mtran, this.pos);
+
+        let m = Mat4.multiply(mat, mat, mrot);
+        Mat4.multiply(mat, mat, mtran);
         return mat;
     }
 }
@@ -227,7 +250,7 @@ async function start() {
     
     let earth = new Planet(Vec3.create(), Vec3.create(), .1, 1, .4, resources.images.earth); 
     let moon = new Planet(Vec3.create(10,0,0), Vec3.create(), .3, .25, 0, resources.images.moon);
-    let sun = new Planet(Vec3.create(0,0,-60), Vec3.create(), .3, 50, 0, resources.images.sun);
+    let sun = new Planet(Vec3.create(0,0,-60), Vec3.create(), .03, 50, 0, resources.images.sun);
     let objs = [earth, moon, sun];
     let renderer = new Renderer(gl, objs);
     handle = window.setInterval(()=> {
