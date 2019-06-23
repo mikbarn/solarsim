@@ -70,6 +70,7 @@ resources.load_shader('simplevs.txt', 's_vs');
 resources.load_shader('simplefs.txt', 's_fs');
 resources.load_image('earth.png', 'earth');
 resources.load_image('moon.jpg', 'moon');
+resources.load_image('sun.jpg', 'sun');
 
 var handle;
 
@@ -82,18 +83,25 @@ class Camera {
         this.zoom = 1;
         this.speed_multi = .5;
         
-        let forward = document.getElementById("cam_up");
-        let back = document.getElementById("cam_down");
         let cam = this;
-        forward.onmousedown = (ev) => {cam.velocity = [0,0, this.speed_multi]};
-        forward.onmouseup = (ev) => {cam.velocity = [0,0, 0]};
-        back.onmousedown = (ev) => {cam.velocity = [0,0, -this.speed_multi]};
-        back.onmouseup = (ev) => {cam.velocity = [0,0, 0]};
+        let settings = {
+            cam_forward: [0,0,1],
+            cam_back: [0,0,-1],
+            cam_strafe_left: [-1,0,0],
+            cam_strafe_right: [1,0,0],
+            cam_rise: [0,1,0],
+            cam_fall: [0,-1,0],
+        }
+        Object.keys(settings).forEach((k) => {
+            let key = k;
+            document.getElementById(k).onmousedown = (ev) => {Vec3.scale(cam.velocity, Vec3.create(...settings[key]), cam.speed_multi); };
+            document.getElementById(k).onmouseup = (ev) => {cam.velocity = [0,0,0]};
+        });
     }
 
     update(delta) {
         this.pos = Vec3.add(this.pos, this.pos, this.velocity);
-        console.log(this.pos, '-- cam')
+        console.log('Cam: ', this.pos, this.velocity);
     }
     
     get matrix() {
@@ -127,7 +135,9 @@ class Planet {
         let model_matrix = Mat4.fromQuat(Mat4.identity(), q);
         let sc = Vec3.create(this.radius, this.radius, this.radius);
         Mat4.scale(model_matrix, model_matrix, sc);
-        Mat4.translate(model_matrix, model_matrix, Vec3.create(...this.pos));
+        let tm = Mat4.identity();
+        Mat4.translate(tm, tm, Vec3.create(...this.pos));
+        Mat4.multiply(model_matrix, tm, model_matrix);
         return model_matrix;
     }
 }
@@ -161,10 +171,10 @@ class Renderer {
                 index_offset: index_offset,
                 texture: tex
             }
-            
-            gl.bindTexture(gl.TEXTURE_2D, tex);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, obj.image);
-            gl.generateMipmap(gl.TEXTURE_2D);
+            //gl.activeTexture(gl.TEXTURE0+i) 
+            //gl.bindTexture(gl.TEXTURE_2D, tex);
+            //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, obj.image);
+            //gl.generateMipmap(gl.TEXTURE_2D);
 
             gl.bindBuffer(gl.ARRAY_BUFFER, this.tex_buffer);
             gl.bufferData(gl.ARRAY_BUFFER, mesh.tex_coords, gl.STATIC_DRAW);
@@ -197,9 +207,9 @@ class Renderer {
         for (let i = 0; i < this.obj_list.length; i++) {
             let obj = this.obj_list[i];
             let obj_data = this.obj_data[obj];
-            gl.activeTexture(obj_data.texture);
             gl.bindTexture(gl.TEXTURE_2D, obj_data.texture);
-            console.log('A T', obj_data.texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, obj.image);
+            gl.generateMipmap(gl.TEXTURE_2D);
             gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
             gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
         }
@@ -207,27 +217,29 @@ class Renderer {
 }
 
 var cam = new Camera();
-
+var sim_paused = false;
 async function start() {
-
     let can = document.getElementById("canvas_1");
     let gl = getGLContext(can);
     let timer = new Timer();
-    timer.start(); 
+    
     await resources.wait_until_loaded();
     
     let earth = new Planet(Vec3.create(), Vec3.create(), .1, 1, .4, resources.images.earth); 
-    let moon = new Planet(Vec3.create(10,0,0), Vec3.create(), .3, .25, 0, resources.images.moon); 
-    let objs = [earth, moon];
+    let moon = new Planet(Vec3.create(10,0,0), Vec3.create(), .3, .25, 0, resources.images.moon);
+    let sun = new Planet(Vec3.create(0,0,-60), Vec3.create(), .3, 50, 0, resources.images.sun);
+    let objs = [earth, moon, sun];
     let renderer = new Renderer(gl, objs);
     handle = window.setInterval(()=> {
-        try {    
+        try { 
+            timer.start(); 
             cam.update(.1);
-            earth.update(.1);
-            moon.update(.1);
+            if (!sim_paused) {
+                objs.forEach((o)=>{o.update(.1)});
+            }
             renderer.draw(gl);
             console.log(timer.stop() + ' ms');
-            window.clearInterval(handle);
+            //window.clearInterval(handle);
         }
         catch(error) {
             console.log(error);
@@ -236,6 +248,8 @@ async function start() {
     }, 100);
 }
 
+
 $(document).ready(function() {
+    document.getElementById("pause_sim").onclick = (ev) => {sim_paused = !sim_paused};
     start();
 });

@@ -46,6 +46,13 @@ export class Vec3 {
         out[2] = a[2] + b[2];
         return out;       
     }
+
+    static scale(out, a, s) {
+        out[0] = a[0] * s;
+        out[1] = a[1] * s;
+        out[2] = a[2] * s; 
+        return out;
+    }
 }
 
 export class Mat4 {

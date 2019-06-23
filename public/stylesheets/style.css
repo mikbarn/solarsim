@@ -13,7 +13,7 @@ a {
     background: black;
 }
 
-#cam_controls {
+#cam_control {
   float: left;
   max-width: 200px;
 }
