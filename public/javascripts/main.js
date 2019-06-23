@@ -33,6 +33,20 @@ class Resources {
         });
         return has_non_null_elements_only;
     }
+
+    async wait_until_loaded(timeout_sec=10) {
+        return new Promise(async (resolve, reject) => {
+            var elapsed_ms = 0.0, interval_ms = 50;
+            while (elapsed_ms/1000 < timeout_sec) {
+                await new Promise(res => {setTimeout(() => {res();}, interval_ms)});
+                elapsed_ms += interval_ms;
+                if (this.is_done()) { 
+                    return resolve();
+                }
+            }
+            reject('Taking too long!');
+        });
+    }
 }
 
 class Timer {
@@ -90,22 +104,17 @@ class Camera {
 }
 
 class Planet {
-    constructor(pos, vel, omega, radius, axial_tilt, image, texture, vertex_buffer, tri_buffer, tex_buffer) {
+    constructor(pos, vel, omega, radius, axial_tilt, image) {
         this.pos = pos;
         this.vel = vel;
         this.radius = radius;
         this.axial_tilt = axial_tilt;
-        this.texture = texture;
         this.image = image;
         this.triangle_mesh = genUnitSphereMesh(20, 20);
         this.dir = [0,0, 1];
         this.v_up = [Math.sin(axial_tilt), Math.cos(axial_tilt), 0];
         this.theta = 0.0;
         this.omega = omega;
-
-        this.vertex_buffer = vertex_buffer;
-        this.tri_buffer = tri_buffer;
-        this.tex_buffer = tex_buffer;
     }
 
     update(delta) {
@@ -118,113 +127,113 @@ class Planet {
         let model_matrix = Mat4.fromQuat(Mat4.identity(), q);
         let sc = Vec3.create(this.radius, this.radius, this.radius);
         Mat4.scale(model_matrix, model_matrix, sc);
+        Mat4.translate(model_matrix, model_matrix, Vec3.create(...this.pos));
         return model_matrix;
     }
+}
 
-    buffer(gl, program) {
-        let pos_buff = this.vertex_buffer, tex_buff = this.tex_buffer, index_buff = this.tri_buffer;
-        let vertices = this.triangle_mesh.vertices;
-        let tm = this.triangle_mesh;
-
-        gl.bindTexture(gl.TEXTURE_2D, this.texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, resources.images.earth);
-        gl.generateMipmap(gl.TEXTURE_2D);
-    
-        let tex_coord_loc = gl.getAttribLocation(program, "a_tex_coord");
-        
-        gl.bindBuffer(gl.ARRAY_BUFFER, tex_buff);
-        gl.bufferData(gl.ARRAY_BUFFER, tm.tex_coords, gl.STATIC_DRAW);
-        gl.enableVertexAttribArray(tex_coord_loc);
-        gl.vertexAttribPointer(tex_coord_loc, 2, gl.FLOAT, false, 0, 0);
-
-        let pos_att_loc = gl.getAttribLocation(program, "a_position");
-        
-        gl.bindBuffer(gl.ARRAY_BUFFER, pos_buff);
-        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-        gl.enableVertexAttribArray(pos_att_loc);
-        gl.vertexAttribPointer(pos_att_loc, 3, gl.FLOAT, false, 0, 0); 
-
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buff);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, tm.tri_indices, gl.STATIC_DRAW);
-
+class Renderer {
+    constructor(gl, object_list) {
+        this.program = getProgram(gl, resources.shaders.s_vs, resources.shaders.s_fs);
+        this.vertex_buffer = gl.createBuffer();
+        this.tri_buffer = gl.createBuffer();
+        this.tex_buffer = gl.createBuffer();
+        this.obj_data = {};
+        this.obj_list = object_list;
+        this.buffer_objects(gl);
     }
 
+    buffer_objects(gl) {
+        gl.useProgram(this.program);
+        let tex_coord_loc = gl.getAttribLocation(this.program, "a_tex_coord");
+        let pos_att_loc = gl.getAttribLocation(this.program, "a_position");
+        let tex_coord_offset = 0;
+        let pos_offset = 0;
+        let index_offset = 0;
+        for (let i = 0; i < this.obj_list.length; i++) {
+            let tex = gl.createTexture();
+            let obj = this.obj_list[i];
+            let mesh = obj.triangle_mesh;
+
+            this.obj_data[obj] = {
+                tex_coord_offset: tex_coord_offset,
+                pos_offset: pos_offset,
+                index_offset: index_offset,
+                texture: tex
+            }
+            
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, obj.image);
+            gl.generateMipmap(gl.TEXTURE_2D);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.tex_buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, mesh.tex_coords, gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(tex_coord_loc);
+            gl.vertexAttribPointer(tex_coord_loc, 2, gl.FLOAT, false, 0, 0);
+            tex_coord_offset += mesh.tex_coords.length / 2;
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, mesh.vertices, gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(pos_att_loc);
+            gl.vertexAttribPointer(pos_att_loc, 3, gl.FLOAT, false, 0, 0);
+            pos_offset += mesh.vertices.length; 
+    
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.tri_buffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.tri_indices, gl.STATIC_DRAW);
+            index_offset += mesh.tri_indices;
+        }
+    }
 
     draw(gl) {
-        let tm = this.triangle_mesh;
-        gl.drawElements(gl.TRIANGLES, tm.tri_indices.length, gl.UNSIGNED_SHORT, 0);
-        //gl.drawArrays(gl.POINTS, 0, tm.vertices.length/3);
+        gl.useProgram(this.program); 
+        gl.viewport(0,0, gl.canvas.width, gl.canvas.height);
+        gl.clearColor(0,0,0,0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.enable(gl.DEPTH_TEST);
+
+        let model_mat_loc = gl.getUniformLocation(this.program, 'model_matrix');
+        let view_mat_loc = gl.getUniformLocation(this.program, 'view_matrix');
+        gl.uniformMatrix4fv(view_mat_loc, false, cam.matrix);
+        for (let i = 0; i < this.obj_list.length; i++) {
+            let obj = this.obj_list[i];
+            let obj_data = this.obj_data[obj];
+            gl.activeTexture(obj_data.texture);
+            gl.bindTexture(gl.TEXTURE_2D, obj_data.texture);
+            console.log('A T', obj_data.texture);
+            gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
+            gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+        }
     }
 }
 
 var cam = new Camera();
 
-function start() {
+async function start() {
 
     let can = document.getElementById("canvas_1");
     let gl = getGLContext(can);
-    let program = null;
-    let earth = null; 
+    let timer = new Timer();
+    timer.start(); 
+    await resources.wait_until_loaded();
     
-    handle = window.setInterval(()=> {    
-    if (resources.is_done()) {
-        if (program == null) {
-            program = getProgram(gl, resources.shaders.s_vs, resources.shaders.s_fs);
-            gl.useProgram(program);
-            earth = new Planet(Vec3.create(), Vec3.create(), .1, 1, .4, resources.images.earth, gl.createTexture(), gl.createBuffer(), gl.createBuffer(), gl.createBuffer());
-            earth.buffer(gl, program);
-        }
-        earth.update(.1);
-        cam.update(.1);
-        //earth.buffer(gl, program);
-        let ok = draw(gl, program, earth);
-        if (!ok) {
+    let earth = new Planet(Vec3.create(), Vec3.create(), .1, 1, .4, resources.images.earth); 
+    let moon = new Planet(Vec3.create(10,0,0), Vec3.create(), .3, .25, 0, resources.images.moon); 
+    let objs = [earth, moon];
+    let renderer = new Renderer(gl, objs);
+    handle = window.setInterval(()=> {
+        try {    
+            cam.update(.1);
+            earth.update(.1);
+            moon.update(.1);
+            renderer.draw(gl);
+            console.log(timer.stop() + ' ms');
             window.clearInterval(handle);
         }
-        //window.clearInterval(handle);;
-    }
-    else {
-        console.log('Loading...');
-    }
+        catch(error) {
+            console.log(error);
+            window.clearInterval(handle);;
+        }
     }, 100);
-}
-
-function draw(gl, program, earth) {
-//    console.log(Timer.start());
-    try {
-        let timer = new Timer();
-        timer.start(); 
-        
- 
-        let model_mat_loc = gl.getUniformLocation(program, 'model_matrix');
-        let view_mat_loc = gl.getUniformLocation(program, 'view_matrix');
-        
-        gl.uniformMatrix4fv(model_mat_loc, false, earth.matrix);
-        gl.uniformMatrix4fv(view_mat_loc, false, cam.matrix);
-        //console.log(vertices);
-        //console.log(tm.tri_indices);
-        //console.log(tm.norms);
-        //console.log(tm.tex_coords);
-
-        
-    // vertices = new Float32Array([.5, 0, 0, .7, .2, 0,]);
-
-        //gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 0, 1, 1,-1]), gl.STATIC_DRAW);
-        
-        gl.viewport(0,0, gl.canvas.width, gl.canvas.height);
-        gl.clearColor(0,0,0,0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.enable(gl.DEPTH_TEST);
-        earth.draw(gl, program);
-
-    
-        console.log(timer.stop() + ' ms');
-        return true;
-    }
-    catch(error) {
-        console.log(error);
-        return false;
-    }
 }
 
 $(document).ready(function() {
