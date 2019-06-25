@@ -77,30 +77,34 @@ var handle;
 class Camera {
     constructor() {
         this.velocity = [0,0,0];
-        this.pos = [0,0, -10];
-        this.v_up = [0, 1,0];
-        this.dir = [0, 0, 1];
+        this.pos = [0,0, 110];
+        this.up = [0, 1,0];
+        this.dir = [0, 0, -1];
+        this.right = [1, 0, 0]
         this.zoom = 1;
         this.theta_x = 0.0;
         this.theta_y = 0.0;
         this.omega_x = 0.0;
         this.omega_y = 0.0;
+        this.rot_mat = new Float32Array([...this.right, 0, ...this.up, 0, ...this.dir, 0, 0, 0, 0, 1])
         
         let cam = this;
+        let neg = Vec3.negate;
+       
         let settings = {
-            cam_forward: [0,0,1],
-            cam_back: [0,0,-1],
-            cam_strafe_left: [-1,0,0],
-            cam_strafe_right: [1,0,0],
-            cam_rise: [0,1,0],
-            cam_fall: [0,-1,0],
+            cam_forward: () => neg(this.dir),
+            cam_back: () => this.dir,
+            cam_strafe_left: () => neg(this.right),
+            cam_strafe_right: () => this.right,
+            cam_rise: () => this.up,
+            cam_fall: () => neg(this.up),
         }
         let move_slider = document.getElementById("movement_speed");
         Object.keys(settings).forEach((k) => {
-            document.getElementById(k).onmousedown = (ev) => {Vec3.scale(cam.velocity, Vec3.create(...settings[k]), parseFloat(move_slider.value)); };
+            document.getElementById(k).onmousedown = (ev) => {Vec3.scale(cam.velocity, settings[k](), parseFloat(move_slider.value)); };
             document.getElementById(k).onmouseup = (ev) => {cam.velocity = [0,0,0]};
         });
-        let get_rot_speed = function() { return parseFloat(document.getElementById("rotate_speed").value) };
+        var get_rot_speed = function() { return parseFloat(document.getElementById("rotate_speed").value) };
         let angles = {
             cam_tilt_up: (ev) => {cam.omega_x = get_rot_speed()},
             cam_tilt_down: (ev) => {cam.omega_x = -get_rot_speed()},
@@ -114,19 +118,49 @@ class Camera {
     }
 
     update(delta) {
+        if (this.omega_x !== 0.0 || this.omega_y !== 0.0) {
+            let d_theta_x = this.omega_x*delta;
+            let d_theta_y = this.omega_y*delta;
+
+            let up = this.up, rot_mat = this.rot_mat;
+
+            up[0] = rot_mat[4];
+            up[1] = rot_mat[5];
+            up[2] = rot_mat[6];
+            
+            Mat4.rotate(rot_mat, rot_mat, d_theta_y, up);
+            this.right[0] = rot_mat[0];
+            this.right[1] = rot_mat[1];
+            this.right[2] = rot_mat[2];
+            Mat4.rotate(rot_mat, rot_mat, d_theta_x,  this.right);
+            
+            this.up[0] = rot_mat[4];
+            this.up[1] = rot_mat[5];
+            this.up[2] = rot_mat[6];
+
+            this.dir[0] = rot_mat[8];
+            this.dir[1] = rot_mat[9];
+            this.dir[2] = rot_mat[10];
+
+            this.right[0] = rot_mat[0];
+            this.right[1] = rot_mat[1];
+            this.right[2] = rot_mat[2];
+
+            this.rot_mat = rot_mat;
+        }
+        
         this.pos = Vec3.add(this.pos, this.pos, this.velocity);
-        this.theta_x += this.omega_x;
-        this.theta_y += this.omega_y;
-        console.log('Cam: ', this.pos, this.velocity, this.theta_x, this.theta_y);
+
+        console.log('Cam: ', this.pos, this.velocity, this.dir, this.right, this.up);
     }
     
     get matrix() {
-        let mat = Mat4.perspective(Mat4.identity(), 45, aspect, 1.0, 1000);
-        let mrot = Mat4.identity(), mtran = Mat4.identity();
-        Mat4.rotate(mrot, mrot, this.theta_x, Vec3.create(1, 0, 0));
-        Mat4.rotate(mrot, mrot, this.theta_y, Vec3.create(0, 1, 0));
-        Mat4.translate(mtran, mtran, this.pos);
-        Mat4.multiply(mat, mat, mtran);
+
+        let mat = Mat4.identity();
+        //let mrot = new Float32Array([...this.right, 0, ...this.up, 0, ...this.dir, 0, 0, 0, 0, 1])
+        Mat4.translate(mat, mat, Vec3.negate(this.pos));
+        Mat4.multiply(mat, this.rot_mat, mat);
+        Mat4.multiply(mat,  Mat4.perspective(Mat4.identity(), 90, aspect, 1.0, Infinity), mat);
         return mat;
     }
 }
@@ -217,14 +251,18 @@ class Renderer {
     draw(gl) {
         gl.useProgram(this.program); 
         gl.viewport(0,0, gl.canvas.width, gl.canvas.height);
-        aspect = gl.canvas.width / gl.canvas.height;
+        aspect = 1;
         gl.clearColor(0,0,0,0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.enable(gl.DEPTH_TEST);
 
         let model_mat_loc = gl.getUniformLocation(this.program, 'model_matrix');
         let view_mat_loc = gl.getUniformLocation(this.program, 'view_matrix');
+        let m = Mat4.identity();
+        
         gl.uniformMatrix4fv(view_mat_loc, false, cam.matrix);
+
+        //gl.uniformMatrix4fv(p_mat_loc, false, Mat4.identity());
         for (let i = 0; i < this.obj_list.length; i++) {
             let obj = this.obj_list[i];
             let obj_data = this.obj_data[obj];
@@ -246,9 +284,9 @@ async function start() {
     
     await resources.wait_until_loaded();
     
-    let earth = new Planet(Vec3.create(), Vec3.create(), .1, 1, .4, resources.images.earth); 
-    let moon = new Planet(Vec3.create(10,0,0), Vec3.create(), .3, .25, 0, resources.images.moon);
-    let sun = new Planet(Vec3.create(0,0,-60), Vec3.create(), .03, 50, 0, resources.images.sun);
+    let earth = new Planet(Vec3.create(0,0,150), Vec3.create(), .1, 1, .4, resources.images.earth); 
+    let moon = new Planet(Vec3.create(0,0,160), Vec3.create(), .3, .25, 0, resources.images.moon);
+    let sun = new Planet(Vec3.create(0,0,0), Vec3.create(), .03, 100, 0, resources.images.sun);
     let objs = [earth, moon, sun];
     let renderer = new Renderer(gl, objs);
     handle = window.setInterval(()=> {
@@ -259,7 +297,7 @@ async function start() {
                 objs.forEach((o)=>{o.update(.1)});
             }
             renderer.draw(gl);
-            console.log(timer.stop() + ' ms');
+            //console.log(timer.stop() + ' ms');
             //window.clearInterval(handle);
         }
         catch(error) {
