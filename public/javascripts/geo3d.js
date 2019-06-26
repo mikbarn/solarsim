@@ -61,6 +61,7 @@ function genUnitSphereMesh(lat, long) {
     }
    
     let norms = [];
+    let lines = [];
     for (let i=0; i<tri_idxs.length; i=i+3) {
         let i1 = tri_idxs[i];
         let i2 = tri_idxs[i+1];
@@ -71,6 +72,7 @@ function genUnitSphereMesh(lat, long) {
         let e1 = Vec3.subtract(Vec3.create(), p2, p1), e2 = Vec3.subtract(Vec3.create(), p3, p2);
         //console.log(e1 + ' -EDGES- ' + e2)
         norms.push(...Vec3.normalize(e1, Vec3.cross(e1, e1, e2)));
+        //lines.push(...p1,...p2,)
     }
 
     let tex_coords = [];

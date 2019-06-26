@@ -79,7 +79,7 @@ class Camera {
         this.velocity = [0,0,0];
         this.pos = [0,0, 110];
         this.up = [0, 1,0];
-        this.dir = [0, 0, -1];
+        this.dir = [0, 0, 1];
         this.right = [1, 0, 0]
         this.zoom = 1;
         this.theta_x = 0.0;
@@ -92,12 +92,12 @@ class Camera {
         let neg = Vec3.negate;
        
         let settings = {
-            cam_forward: () => neg(this.dir),
-            cam_back: () => this.dir,
-            cam_strafe_left: () => neg(this.right),
-            cam_strafe_right: () => this.right,
-            cam_rise: () => this.up,
-            cam_fall: () => neg(this.up),
+            cam_forward: () => neg(cam.dir),
+            cam_back: () => cam.dir,
+            cam_strafe_left: () => neg(cam.right),
+            cam_strafe_right: () => cam.right,
+            cam_rise: () => cam.up,
+            cam_fall: () => neg(cam.up),
         }
         let move_slider = document.getElementById("movement_speed");
         Object.keys(settings).forEach((k) => {
@@ -115,24 +115,49 @@ class Camera {
             document.getElementById(k).onmousedown = angles[k];
             document.getElementById(k).onmouseup = (ev) => {cam.omega_x = 0.0, cam.omega_y = 0.0};
         });
+
+        document.getElementById("cam_recenter").onclick = (ev) => {
+            cam.up = [0,1,0];
+            Vec3.cross(cam.dir, cam.right, cam.up);
+            Vec3.cross(cam.right, cam.up, cam.dir);
+            let rot_mat = this.rot_mat;
+            rot_mat[4] =  this.up[0];
+            rot_mat[5] =  this.up[1];
+            rot_mat[6] =  this.up[2];
+
+            rot_mat[0] =  this.right[0];
+            rot_mat[1] =  this.right[1];
+            rot_mat[2] =  this.right[2];
+
+            rot_mat[8] =  this.dir[0];
+            rot_mat[9] =  this.dir[1];
+            rot_mat[10] =  this.dir[2];
+        };
     }
 
     update(delta) {
         if (this.omega_x !== 0.0 || this.omega_y !== 0.0) {
             let d_theta_x = this.omega_x*delta;
             let d_theta_y = this.omega_y*delta;
+            let rot_mat = this.rot_mat;
+            // let up = this.up, rot_mat = this.rot_mat;
+            // if (this.omega_y !== 0.0) {
+            //     up[0] = rot_mat[4];
+            //     up[1] = rot_mat[5];
+            //     up[2] = rot_mat[6];
+                
+            //     Mat4.rotate(rot_mat, rot_mat, d_theta_y, up);
+            // }
+            // else {
+            //     this.right[0] = rot_mat[0];
+            //     this.right[1] = rot_mat[1];
+            //     this.right[2] = rot_mat[2];
 
-            let up = this.up, rot_mat = this.rot_mat;
+            //     Mat4.rotate(rot_mat, rot_mat, d_theta_x,  this.right);
+            // }
 
-            up[0] = rot_mat[4];
-            up[1] = rot_mat[5];
-            up[2] = rot_mat[6];
-            
-            Mat4.rotate(rot_mat, rot_mat, d_theta_y, up);
-            this.right[0] = rot_mat[0];
-            this.right[1] = rot_mat[1];
-            this.right[2] = rot_mat[2];
-            Mat4.rotate(rot_mat, rot_mat, d_theta_x,  this.right);
+            Mat4.rotateY(rot_mat, rot_mat, d_theta_y);
+            Mat4.rotateX(rot_mat, rot_mat, d_theta_x);
             
             this.up[0] = rot_mat[4];
             this.up[1] = rot_mat[5];
@@ -151,16 +176,17 @@ class Camera {
         
         this.pos = Vec3.add(this.pos, this.pos, this.velocity);
 
-        console.log('Cam: ', this.pos, this.velocity, this.dir, this.right, this.up);
+        console.log('Cam: ', this.pos, this.velocity, 'Dir:', this.dir, 'Right:', this.right, this.up);
     }
     
     get matrix() {
 
         let mat = Mat4.identity();
         //let mrot = new Float32Array([...this.right, 0, ...this.up, 0, ...this.dir, 0, 0, 0, 0, 1])
-        Mat4.translate(mat, mat, Vec3.negate(this.pos));
-        Mat4.multiply(mat, this.rot_mat, mat);
-        Mat4.multiply(mat,  Mat4.perspective(Mat4.identity(), 90, aspect, 1.0, Infinity), mat);
+        Mat4.translate(mat, mat, this.pos);
+        Mat4.multiply(mat, mat, this.rot_mat);
+        Mat4.invert(mat, mat);
+        Mat4.multiply(mat,  Mat4.perspective(Mat4.identity(), 45, aspect, 1.0, Infinity), mat);
         return mat;
     }
 }
@@ -258,8 +284,7 @@ class Renderer {
 
         let model_mat_loc = gl.getUniformLocation(this.program, 'model_matrix');
         let view_mat_loc = gl.getUniformLocation(this.program, 'view_matrix');
-        let m = Mat4.identity();
-        
+
         gl.uniformMatrix4fv(view_mat_loc, false, cam.matrix);
 
         //gl.uniformMatrix4fv(p_mat_loc, false, Mat4.identity());
@@ -270,7 +295,15 @@ class Renderer {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, obj.image);
             gl.generateMipmap(gl.TEXTURE_2D);
             gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
-            gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+            //gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+            gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+            // for (let j = 0; j < obj.triangle_mesh.tri_indices.length; j+=3) {
+            //     let off = obj_data.index_offset+j;
+            //     let p1 = obj.triangle_mesh.tri_indices[off];
+            //     let p2 = obj.triangle_mesh.tri_indices[off+1];
+            //     gl.drawElements(gl.LINES, 2, gl.UNSIGNED_SHORT, obj.triangle_mesh.vertices[p1]);
+            //     gl.drawElements(gl.LINES, 2, gl.UNSIGNED_SHORT, obj.triangle_mesh.vertices[]);
+            // }
         }
     }
 }
@@ -307,8 +340,7 @@ async function start() {
     }, 100);
 }
 
-
-$(document).ready(function() {
+document.addEventListener("DOMContentLoaded", (ev) => {
     document.getElementById("pause_sim").onclick = (ev) => {sim_paused = !sim_paused};
     start();
 });
