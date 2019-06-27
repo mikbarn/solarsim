@@ -115,7 +115,7 @@ class Camera {
             document.getElementById(k).onmousedown = angles[k];
             document.getElementById(k).onmouseup = (ev) => {cam.omega_x = 0.0, cam.omega_y = 0.0};
         });
-
+ 
         document.getElementById("cam_recenter").onclick = (ev) => {
             cam.up = [0,1,0];
             Vec3.cross(cam.dir, cam.right, cam.up);
@@ -294,9 +294,14 @@ class Renderer {
             gl.bindTexture(gl.TEXTURE_2D, obj_data.texture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, obj.image);
             gl.generateMipmap(gl.TEXTURE_2D);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
             gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
-            //gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
-            gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+            gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+            //gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+            //gl.drawArrays(gl.POINTS, 0, obj.triangle_mesh.vertices.length/3);
             // for (let j = 0; j < obj.triangle_mesh.tri_indices.length; j+=3) {
             //     let off = obj_data.index_offset+j;
             //     let p1 = obj.triangle_mesh.tri_indices[off];
@@ -319,7 +324,7 @@ async function start() {
     
     let earth = new Planet(Vec3.create(0,0,150), Vec3.create(), .1, 1, .4, resources.images.earth); 
     let moon = new Planet(Vec3.create(0,0,160), Vec3.create(), .3, .25, 0, resources.images.moon);
-    let sun = new Planet(Vec3.create(0,0,0), Vec3.create(), .03, 100, 0, resources.images.sun);
+    let sun = new Planet(Vec3.create(0,0,0), Vec3.create(), .3, 100, 0, resources.images.sun);
     let objs = [earth, moon, sun];
     let renderer = new Renderer(gl, objs);
     handle = window.setInterval(()=> {

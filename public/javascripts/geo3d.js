@@ -20,48 +20,51 @@ function genUnitSphereMesh(lat, long) {
     let vertices = [0,1,0]; // north pole
     let tri_idxs = [];
 
-    let vertices_per_lat = (long*2)+2;
+    let edges_per_lat = (long*2)+2; // longitude divisions per half + 2 poles
+    let vertices_per_lat = edges_per_lat + 1;
     for (let i=1; i <=lat; i++) {
         let theta = theta_inc * i;
-        for (let j=0; j<vertices_per_lat; j++) {
+        for (let j=0; j< vertices_per_lat; j++) {
             let phi = phi_inc * j;
             //console.log('PHI ' + phi )
+
+            // if (j == vertices_per_lat-1) {
+            //   //theta *= .9;
+            //   phi *= .9;
+                
+            // }
             vertices.push(cos(phi)*sin(theta), cos(theta), sin(phi)*sin(theta));
             //console.log(Math.sqrt(sin(phi)*sin(theta)*sin(phi)*sin(theta) + cos(theta)*cos(theta) + cos(phi)*sin(theta)*cos(phi)*sin(theta)))
         }
     }
     vertices.push(0,-1,0); // south pole
+    let sp_idx = (vertices.length / 3) - 1;
 
     for(let i=0; i<vertices_per_lat; i++) {
-        tri_idxs.push(0, i+1, (i+2) < vertices_per_lat+1 ? i+2: 1);
+        tri_idxs.push(0, i+1, i+2);
     }
-    let sp_idx = (vertices.length / 3) - 1;
+    
     console.log('sp idx ' + sp_idx);
     for(let i=0; i<lat-1; i++) {
-        let k = 1+vertices_per_lat*i;
+        let k = 1+(vertices_per_lat*i);
         //console.log('K ' + k)
-        for(let j=0; j<vertices_per_lat; j++) {
+        for(let j=0; j<vertices_per_lat-1; j++) {
             let m = k+j;
             let n =  m+vertices_per_lat+1;
-            if (j< vertices_per_lat-1) {
-                tri_idxs.push(m, m+vertices_per_lat, n);
-                tri_idxs.push(m, n, m+1);
-            }
-            else {
-                tri_idxs.push(m, m+vertices_per_lat, k+vertices_per_lat);
-                tri_idxs.push(m, k+vertices_per_lat, k); 
-            }
+            tri_idxs.push(m, m+vertices_per_lat, n);
+            tri_idxs.push(m, n, m+1);
         }
+
     }
     
     //console.log('VPL ' + vertices_per_lat);
-    
-    for (let i=vertices_per_lat; i>0; i--) {
-        tri_idxs.push(sp_idx-i, sp_idx, (sp_idx - i + 1) < sp_idx? (sp_idx - i+1): sp_idx - vertices_per_lat)
+    let k = sp_idx - vertices_per_lat;
+    for (let i=0; i < vertices_per_lat -1; i++) {
+        tri_idxs.push(k + i, sp_idx, k+i+1)
     }
    
     let norms = [];
-    let lines = [];
+    
     for (let i=0; i<tri_idxs.length; i=i+3) {
         let i1 = tri_idxs[i];
         let i2 = tri_idxs[i+1];
@@ -75,15 +78,31 @@ function genUnitSphereMesh(lat, long) {
         //lines.push(...p1,...p2,)
     }
 
+    console.log('TEXTUREING!!!')
     let tex_coords = [];
     for (let i=0; i<vertices.length; i=i+3) {
         let x = vertices[i];
         let y = vertices[i+1];
         let z = vertices[i+2];
         let v = 0.5-(Math.asin(y)/Math.PI);
-        let u = (Math.atan2(z, x) / (Math.PI*2)) + 0.5;
-        tex_coords.push(u, v); //wikipedia!
+        let u = 0.0;
+        if (z >= 0) {
+            u = (Math.atan2(z, x) / (Math.PI*2));
+        }
+        else {
+            u = 0.5 + (Math.PI+(Math.atan2(z, x))) / (Math.PI*2);
+        }
+       // console.log('X', x, 'Z ', z, 'U', u);
+        tex_coords.push(u, v); 
     }
+
+    let m = 2*vertices_per_lat;
+    for (let i = m; i < 2*sp_idx; i+=(m)) { // fix u on seam duplicate
+        tex_coords[i] = 1.0;
+    }
+
+    //console.log('TRI', tri_idxs);
+    //console.log('VERT', vertices);
      
     let tm = new TriMesh();
     tm.vertices = new Float32Array(vertices);
