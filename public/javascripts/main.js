@@ -68,6 +68,7 @@ class Timer {
 var resources = new Resources();
 resources.load_shader('mainvs.txt', 's_vs');
 resources.load_shader('mainfs.txt', 's_fs');
+resources.load_shader('meshfs.txt', 'mesh_fs');
 resources.load_image('earth.png', 'earth');
 resources.load_image('moon.jpg', 'moon');
 resources.load_image('sun.jpg', 'sun');
@@ -222,21 +223,35 @@ class Planet {
     }
 }
 
+
 class Renderer {
     constructor(gl, object_list) {
-        this.program = getProgram(gl, resources.shaders.s_vs, resources.shaders.s_fs);
+        this.main_program = {
+            prog: getProgram(gl, resources.shaders.s_vs, resources.shaders.s_fs)
+        };
+        this.debug_program = {
+            prog: getProgram(gl, resources.shaders.s_vs, resources.shaders.mesh_fs)
+        };
+        let progs = [this.main_program, this.debug_program];
+        progs.forEach((v) => {
+            v.tex_coord_loc = gl.getAttribLocation(v.prog, "a_tex_coord");
+            v.pos_att_loc = gl.getAttribLocation(v.prog, "a_position");
+            v.norm_att_loc = gl.getAttribLocation(v.prog, "a_norms");
+        })
         this.vertex_buffer = gl.createBuffer();
         this.tri_buffer = gl.createBuffer();
         this.tex_buffer = gl.createBuffer();
         this.obj_data = {};
         this.obj_list = object_list;
         this.buffer_objects(gl);
+        this.main_enabled = true;
+        document.getElementById("toggle_shader").onclick = (ev) => {
+            this.main_enabled = !this.main_enabled;
+        }
     }
 
     buffer_objects(gl) {
-        gl.useProgram(this.program);
-        let tex_coord_loc = gl.getAttribLocation(this.program, "a_tex_coord");
-        let pos_att_loc = gl.getAttribLocation(this.program, "a_position");
+        let progs = [this.main_program, this.debug_program];
         let tex_coord_offset = 0;
         let pos_offset = 0;
         let index_offset = 0;
@@ -258,14 +273,19 @@ class Renderer {
 
             gl.bindBuffer(gl.ARRAY_BUFFER, this.tex_buffer);
             gl.bufferData(gl.ARRAY_BUFFER, mesh.tex_coords, gl.STATIC_DRAW);
-            gl.enableVertexAttribArray(tex_coord_loc);
-            gl.vertexAttribPointer(tex_coord_loc, 2, gl.FLOAT, false, 0, 0);
+            progs.forEach((v) => {
+                gl.useProgram(v.prog);
+                gl.enableVertexAttribArray(v.tex_coord_loc);
+                gl.vertexAttribPointer(v.tex_coord_loc, 2, gl.FLOAT, false, 0, 0);
+            });
             tex_coord_offset += mesh.tex_coords.length / 2;
             
             gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
             gl.bufferData(gl.ARRAY_BUFFER, mesh.vertices, gl.STATIC_DRAW);
-            gl.enableVertexAttribArray(pos_att_loc);
-            gl.vertexAttribPointer(pos_att_loc, 3, gl.FLOAT, false, 0, 0);
+            progs.forEach((v) => {
+                gl.enableVertexAttribArray(v.pos_att_loc);
+                gl.vertexAttribPointer(v.pos_att_loc, 3, gl.FLOAT, false, 0, 0);
+            });
             pos_offset += mesh.vertices.length; 
     
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.tri_buffer);
@@ -275,33 +295,53 @@ class Renderer {
     }
 
     draw(gl) {
-        gl.useProgram(this.program); 
+        gl.useProgram(this.main_program.prog); 
         gl.viewport(0,0, gl.canvas.width, gl.canvas.height);
         aspect = 1;
         gl.clearColor(0,0,0,0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.enable(gl.DEPTH_TEST);
+        let model_mat_loc = null, view_mat_loc = null;
 
-        let model_mat_loc = gl.getUniformLocation(this.program, 'model_matrix');
-        let view_mat_loc = gl.getUniformLocation(this.program, 'view_matrix');
+        if (this.main_enabled) {
+            model_mat_loc = gl.getUniformLocation(this.main_program.prog, 'model_matrix');
+            view_mat_loc = gl.getUniformLocation(this.main_program.prog, 'view_matrix');
 
-        gl.uniformMatrix4fv(view_mat_loc, false, cam.matrix);
+            gl.uniformMatrix4fv(view_mat_loc, false, cam.matrix);
 
-        //gl.uniformMatrix4fv(p_mat_loc, false, Mat4.identity());
-        for (let i = 0; i < this.obj_list.length; i++) {
-            let obj = this.obj_list[i];
-            let obj_data = this.obj_data[obj];
-            gl.bindTexture(gl.TEXTURE_2D, obj_data.texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, obj.image);
-            gl.generateMipmap(gl.TEXTURE_2D);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-            //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-            //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
-            gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
-            //gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
-            //gl.drawArrays(gl.POINTS, 0, obj.triangle_mesh.vertices.length/3);
+            for (let i = 0; i < this.obj_list.length; i++) {
+                let obj = this.obj_list[i];
+                let obj_data = this.obj_data[obj];
+                gl.bindTexture(gl.TEXTURE_2D, obj_data.texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, obj.image);
+                gl.generateMipmap(gl.TEXTURE_2D);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+                //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
+                gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+                //gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+                //gl.drawArrays(gl.POINTS, 0, obj.triangle_mesh.vertices.length/3);
+            }
+        }
+        else {
+            gl.useProgram(this.debug_program.prog);
+            model_mat_loc = gl.getUniformLocation(this.debug_program.prog, 'model_matrix');
+            view_mat_loc = gl.getUniformLocation(this.debug_program.prog, 'view_matrix');
+
+            gl.uniformMatrix4fv(view_mat_loc, false, cam.matrix);
+
+            //gl.uniformMatrix4fv(p_mat_loc, false, Mat4.identity());
+            for (let i = 0; i < this.obj_list.length; i++) {
+                let obj = this.obj_list[i];
+                let obj_data = this.obj_data[obj];
+
+                gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
+                //gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+                //gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+                gl.drawArrays(gl.POINTS, 0, obj.triangle_mesh.vertices.length/3);
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ uniform mat4 view_matrix;
 
 attribute vec4 a_position;
 attribute vec2 a_tex_coord;
+attribute vec3 a_norms;
 
 varying vec2 v_tex_coord;
 varying vec3 v_col_pos;
