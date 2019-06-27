@@ -3,17 +3,24 @@ uniform mat4 view_matrix;
 
 attribute vec4 a_position;
 attribute vec2 a_tex_coord;
-attribute vec3 a_norms;
 
 varying vec2 v_tex_coord;
 varying vec3 v_col_pos;
 
 uniform sampler2D uSampler;
 
+uniform vec3 u_world_light_pos;
+uniform float u_intrinsic_bright;
+varying float v_bright;
+
 void main() {    
     v_tex_coord = a_tex_coord;
     v_col_pos = a_position.xyz;
-    gl_Position = view_matrix * model_matrix * a_position;
+    vec4 world_pos = model_matrix * a_position;
+    vec3 rev_light_dir = normalize((u_world_light_pos - world_pos.xyz));
+    vec3 normal = normalize(mat3(model_matrix) * a_position.xyz);
+    gl_Position = view_matrix * world_pos;
     gl_PointSize = 2.0;
+    v_bright =  clamp(dot(rev_light_dir, normal)+u_intrinsic_bright, 0.20, 10.0);
     
 }

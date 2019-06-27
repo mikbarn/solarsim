@@ -4,7 +4,10 @@ varying vec3 v_col_pos;
 
 uniform sampler2D uSampler;
 
+varying float v_bright;
 
 void main() {
-    gl_FragColor = texture2D(uSampler, vec2(v_tex_coord.s, v_tex_coord.t));
+    vec4 junk = texture2D(uSampler, vec2(v_tex_coord.s, v_tex_coord.t));
+    junk = vec4(junk.xyz * v_bright, junk.w);
+    gl_FragColor = junk;
 }

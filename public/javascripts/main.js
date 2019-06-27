@@ -176,7 +176,6 @@ class Camera {
         }
         
         this.pos = Vec3.add(this.pos, this.pos, this.velocity);
-
         console.log('Cam: ', this.pos, this.velocity, 'Dir:', this.dir, 'Right:', this.right, this.up);
     }
     
@@ -190,6 +189,8 @@ class Camera {
         Mat4.multiply(mat,  Mat4.perspective(Mat4.identity(), 45, aspect, 1.0, Infinity), mat);
         return mat;
     }
+
+
 }
 
 class Planet {
@@ -204,6 +205,8 @@ class Planet {
         this.v_up = [Math.sin(axial_tilt), Math.cos(axial_tilt), 0];
         this.theta = 0.0;
         this.omega = omega;
+        this.rot_mat = Mat4.identity();
+        this.instrinsic = 0.0;
     }
 
     update(delta) {
@@ -283,6 +286,7 @@ class Renderer {
             gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
             gl.bufferData(gl.ARRAY_BUFFER, mesh.vertices, gl.STATIC_DRAW);
             progs.forEach((v) => {
+                gl.useProgram(v.prog);
                 gl.enableVertexAttribArray(v.pos_att_loc);
                 gl.vertexAttribPointer(v.pos_att_loc, 3, gl.FLOAT, false, 0, 0);
             });
@@ -292,6 +296,7 @@ class Renderer {
             gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.tri_indices, gl.STATIC_DRAW);
             index_offset += mesh.tri_indices;
         }
+        
     }
 
     draw(gl) {
@@ -301,14 +306,16 @@ class Renderer {
         gl.clearColor(0,0,0,0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.enable(gl.DEPTH_TEST);
-        let model_mat_loc = null, view_mat_loc = null;
+        let model_mat_loc = null, view_mat_loc = null, light_pos_loc = null;
 
         if (this.main_enabled) {
             model_mat_loc = gl.getUniformLocation(this.main_program.prog, 'model_matrix');
             view_mat_loc = gl.getUniformLocation(this.main_program.prog, 'view_matrix');
+            light_pos_loc = gl.getUniformLocation(this.main_program.prog, 'u_world_light_pos');
+            let intrinsic_loc = gl.getUniformLocation(this.main_program.prog, 'u_intrinsic_bright');
 
             gl.uniformMatrix4fv(view_mat_loc, false, cam.matrix);
-
+            gl.uniform3fv(light_pos_loc, Vec3.create(0, 0, 0));
             for (let i = 0; i < this.obj_list.length; i++) {
                 let obj = this.obj_list[i];
                 let obj_data = this.obj_data[obj];
@@ -320,26 +327,24 @@ class Renderer {
                 //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                 //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
                 gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
+                gl.uniform1f(intrinsic_loc, obj.instrinsic);
                 gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
-                //gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
-                //gl.drawArrays(gl.POINTS, 0, obj.triangle_mesh.vertices.length/3);
             }
         }
         else {
             gl.useProgram(this.debug_program.prog);
             model_mat_loc = gl.getUniformLocation(this.debug_program.prog, 'model_matrix');
             view_mat_loc = gl.getUniformLocation(this.debug_program.prog, 'view_matrix');
+            light_pos_loc = gl.getUniformLocation(this.debug_program.prog, 'u_world_light_pos');
 
             gl.uniformMatrix4fv(view_mat_loc, false, cam.matrix);
 
-            //gl.uniformMatrix4fv(p_mat_loc, false, Mat4.identity());
             for (let i = 0; i < this.obj_list.length; i++) {
                 let obj = this.obj_list[i];
                 let obj_data = this.obj_data[obj];
 
                 gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
-                //gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
-                //gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+                gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
                 gl.drawArrays(gl.POINTS, 0, obj.triangle_mesh.vertices.length/3);
             }
         }
@@ -356,8 +361,10 @@ async function start() {
     await resources.wait_until_loaded();
     
     let earth = new Planet(Vec3.create(0,0,150), Vec3.create(), .1, 1, .4, resources.images.earth); 
-    let moon = new Planet(Vec3.create(0,0,160), Vec3.create(), .3, .25, 0, resources.images.moon);
+    let moon = new Planet(Vec3.create(20,0,160), Vec3.create(), .3, .25, 0, resources.images.moon);
     let sun = new Planet(Vec3.create(0,0,0), Vec3.create(), .03, 100, 0, resources.images.sun);
+    sun.instrinsic = 2.5;
+    earth.instrinsic = .5;
     let objs = [earth, moon, sun];
     let renderer = new Renderer(gl, objs);
     handle = window.setInterval(()=> {
@@ -373,6 +380,7 @@ async function start() {
         }
         catch(error) {
             console.log(error);
+            console.log(gl.getError());
             window.clearInterval(handle);;
         }
     }, 100);

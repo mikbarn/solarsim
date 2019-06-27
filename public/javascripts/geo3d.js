@@ -64,19 +64,19 @@ function genUnitSphereMesh(lat, long) {
     }
    
     let norms = [];
-    
-    for (let i=0; i<tri_idxs.length; i=i+3) {
-        let i1 = tri_idxs[i];
-        let i2 = tri_idxs[i+1];
-        let i3 = tri_idxs[i+2];
-        let p1 = [vertices[i1], vertices[i1+1], vertices[i1+2]];
-        let p2 = [vertices[i2], vertices[i2+1], vertices[i2+2]];
-        let p3 = [vertices[i3], vertices[i3+1], vertices[i3+2]];
-        let e1 = Vec3.subtract(Vec3.create(), p2, p1), e2 = Vec3.subtract(Vec3.create(), p3, p2);
-        //console.log(e1 + ' -EDGES- ' + e2)
-        norms.push(...Vec3.normalize(e1, Vec3.cross(e1, e1, e2)));
-        //lines.push(...p1,...p2,)
-    }
+    // TODO want face normals
+    // for (let i=0; i<tri_idxs.length; i=i+3) { 
+    //     let i1 = tri_idxs[i];
+    //     let i2 = tri_idxs[i+1];
+    //     let i3 = tri_idxs[i+2];
+    //     let p1 = [vertices[i1], vertices[i1+1], vertices[i1+2]];
+    //     let p2 = [vertices[i2], vertices[i2+1], vertices[i2+2]];
+    //     let p3 = [vertices[i3], vertices[i3+1], vertices[i3+2]];
+    //     let e1 = Vec3.subtract(Vec3.create(), p2, p1), e2 = Vec3.subtract(Vec3.create(), p3, p2);
+    //     //console.log(e1 + ' -EDGES- ' + e2)
+    //     norms.push(...Vec3.normalize(e1, Vec3.cross(e1, e1, e2)));
+    //     //lines.push(...p1,...p2,)
+    // }
 
     console.log('TEXTUREING!!!')
     let tex_coords = [];

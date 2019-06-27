@@ -5,6 +5,7 @@ varying vec3 v_col_pos;
 uniform sampler2D uSampler;
 
 
+
 void main() {
     gl_FragColor = vec4((1.0 + v_col_pos.x) / 2.0, (1.0 + v_col_pos.y) / 2.0, (1.0 + v_col_pos.z) / 2.0, 1.0);
 }
