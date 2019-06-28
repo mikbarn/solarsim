@@ -69,16 +69,16 @@ var resources = new Resources();
 resources.load_shader('mainvs.txt', 's_vs');
 resources.load_shader('mainfs.txt', 's_fs');
 resources.load_shader('meshfs.txt', 'mesh_fs');
-resources.load_image('earth.png', 'earth');
+resources.load_image('earth_daytime.jpg', 'earth');
 resources.load_image('moon.jpg', 'moon');
 resources.load_image('sun.jpg', 'sun');
 
 var handle;
 
 class Camera {
-    constructor() {
+    constructor(pos=[0, 0, 500]) {
         this.velocity = [0,0,0];
-        this.pos = [0,0, 110];
+        this.pos = pos;
         this.up = [0, 1,0];
         this.dir = [0, 0, 1];
         this.right = [1, 0, 0]
@@ -88,6 +88,9 @@ class Camera {
         this.omega_x = 0.0;
         this.omega_y = 0.0;
         this.rot_mat = new Float32Array([...this.right, 0, ...this.up, 0, ...this.dir, 0, 0, 0, 0, 1])
+        this._aspect = 1;
+        this._fovY = 120;
+        this.p_mat = Mat4.perspective(Mat4.identity(), this._fovY, this._aspect, 1.0, Infinity);
         
         let cam = this;
         let neg = Vec3.negate;
@@ -116,7 +119,7 @@ class Camera {
             document.getElementById(k).onmousedown = angles[k];
             document.getElementById(k).onmouseup = (ev) => {cam.omega_x = 0.0, cam.omega_y = 0.0};
         });
- 
+
         document.getElementById("cam_recenter").onclick = (ev) => {
             cam.up = [0,1,0];
             Vec3.cross(cam.dir, cam.right, cam.up);
@@ -141,21 +144,6 @@ class Camera {
             let d_theta_x = this.omega_x*delta;
             let d_theta_y = this.omega_y*delta;
             let rot_mat = this.rot_mat;
-            // let up = this.up, rot_mat = this.rot_mat;
-            // if (this.omega_y !== 0.0) {
-            //     up[0] = rot_mat[4];
-            //     up[1] = rot_mat[5];
-            //     up[2] = rot_mat[6];
-                
-            //     Mat4.rotate(rot_mat, rot_mat, d_theta_y, up);
-            // }
-            // else {
-            //     this.right[0] = rot_mat[0];
-            //     this.right[1] = rot_mat[1];
-            //     this.right[2] = rot_mat[2];
-
-            //     Mat4.rotate(rot_mat, rot_mat, d_theta_x,  this.right);
-            // }
 
             Mat4.rotateY(rot_mat, rot_mat, d_theta_y);
             Mat4.rotateX(rot_mat, rot_mat, d_theta_x);
@@ -179,14 +167,18 @@ class Camera {
         console.log('Cam: ', this.pos, this.velocity, 'Dir:', this.dir, 'Right:', this.right, this.up);
     }
     
-    get matrix() {
-
+    get_matrix(aspect) {
+        if (this._aspect !== aspect) {
+            console.log('Setting pmat to aspect ', aspect);
+            this.p_mat = Mat4.perspective(Mat4.identity(), this._fovY, aspect, 1.0, Infinity);
+            this._aspect = aspect;
+        }
         let mat = Mat4.identity();
         //let mrot = new Float32Array([...this.right, 0, ...this.up, 0, ...this.dir, 0, 0, 0, 0, 1])
         Mat4.translate(mat, mat, this.pos);
         Mat4.multiply(mat, mat, this.rot_mat);
         Mat4.invert(mat, mat);
-        Mat4.multiply(mat,  Mat4.perspective(Mat4.identity(), 45, aspect, 1.0, Infinity), mat);
+        Mat4.multiply(mat, this.p_mat, mat);
         return mat;
     }
 
@@ -301,8 +293,12 @@ class Renderer {
 
     draw(gl) {
         gl.useProgram(this.main_program.prog); 
-        gl.viewport(0,0, gl.canvas.width, gl.canvas.height);
-        aspect = 1;
+        let w = gl.canvas.clientWidth, h = gl.canvas.clientHeight;
+        gl.canvas.width = w;
+        gl.canvas.height = h;
+        gl.viewport(0,0, w, h);
+        let aspect = parseFloat(w) / parseFloat(h);
+        console.log('Aspect: ', aspect, w, h);
         gl.clearColor(0,0,0,0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.enable(gl.DEPTH_TEST);
@@ -314,7 +310,7 @@ class Renderer {
             light_pos_loc = gl.getUniformLocation(this.main_program.prog, 'u_world_light_pos');
             let intrinsic_loc = gl.getUniformLocation(this.main_program.prog, 'u_intrinsic_bright');
 
-            gl.uniformMatrix4fv(view_mat_loc, false, cam.matrix);
+            gl.uniformMatrix4fv(view_mat_loc, false, cam.get_matrix(aspect));
             gl.uniform3fv(light_pos_loc, Vec3.create(0, 0, 0));
             for (let i = 0; i < this.obj_list.length; i++) {
                 let obj = this.obj_list[i];
@@ -337,7 +333,7 @@ class Renderer {
             view_mat_loc = gl.getUniformLocation(this.debug_program.prog, 'view_matrix');
             light_pos_loc = gl.getUniformLocation(this.debug_program.prog, 'u_world_light_pos');
 
-            gl.uniformMatrix4fv(view_mat_loc, false, cam.matrix);
+            gl.uniformMatrix4fv(view_mat_loc, false, cam.get_matrix(aspect));
 
             for (let i = 0; i < this.obj_list.length; i++) {
                 let obj = this.obj_list[i];
@@ -345,24 +341,24 @@ class Renderer {
 
                 gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
                 gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+                //
                 gl.drawArrays(gl.POINTS, 0, obj.triangle_mesh.vertices.length/3);
             }
         }
     }
 }
-var aspect = 1;
 var cam = new Camera();
 var sim_paused = false;
+var main_canvas = document.getElementById("canvas_1");
 async function start() {
-    let can = document.getElementById("canvas_1");
-    let gl = getGLContext(can);
+    let gl = getGLContext(main_canvas);
     let timer = new Timer();
     
     await resources.wait_until_loaded();
     
     let earth = new Planet(Vec3.create(0,0,150), Vec3.create(), .1, 1, .4, resources.images.earth); 
     let moon = new Planet(Vec3.create(20,0,160), Vec3.create(), .3, .25, 0, resources.images.moon);
-    let sun = new Planet(Vec3.create(0,0,0), Vec3.create(), .03, 100, 0, resources.images.sun);
+    let sun = new Planet(Vec3.create(0,0,0), Vec3.create(), .01, 100, 0, resources.images.sun);
     sun.instrinsic = 2.5;
     earth.instrinsic = .5;
     let objs = [earth, moon, sun];

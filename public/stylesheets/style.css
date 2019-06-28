@@ -1,14 +1,31 @@
 body {
-  padding: 50px;
-  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+  /* padding: 50px; */
+  font: 14px "Arial", Helvetica, Arial, sans-serif;
+  /* background-image: url("../images/2k_stars.jpg"); */
+  /* background-color: rgba(.2, .2, .2, .2); */
+  width: 90%;
+  margin: auto;
+  border-width: 0px 2px;
+  border-color: black;
+  border-style: solid;
+
+}
+
+#head_wrap {
+  border-bottom: 2px solid black;
+  width: 100%;
+  margin-bottom: 2px;
 }
 
 a {
   color: #00B7FF;
 }
 
+
+
 #canvas_1 {
-    width:500px;
+    clear:both;
+    width:100%;
     height:500px;
     background: black;
 }
@@ -16,5 +33,74 @@ a {
 #cam_control > * {
   display: block;
   float: left;
-  max-width: 200px;
+  margin: 2px 2px;
+  padding: .5em;
+  text-align: center;
+  /* max-width: 200px; */
 }
+
+#cam_control  .threex3 {
+  width: 75px;
+  height: 75px;
+}
+#cam_control > table {
+  padding: 0%;
+  margin-right: .5em;
+  /* border-width: 0px .5vw 0px 0px;
+  border-style: solid; */
+
+}
+
+#cam_control > table > tbody > tr > td {
+  width: 25px;
+  height: 25px;
+  padding: 0%;
+}
+
+/* #cam_control > table > tbody > tr > td  */
+
+#cam_control > table > tbody > tr > td > button{
+padding: 0%;
+width: 100%;
+height: 100%;
+background-color: #ddd;
+border: none;
+color: black;
+text-align: center;
+text-decoration: none;
+display: inline-block;
+cursor: pointer;
+border-radius: 16px;
+}
+
+#cam_speed_settings {
+  display: none;
+}
+
+#foot_wrap {
+  clear: both;
+  width:100%;
+}
+#foot_wrap > div {
+  float: left;
+  min-width:40%;
+}
+
+#sim_menu {
+  position: relative;
+}
+
+#objectsbtn {
+  display: inline-block;
+  cursor: pointer;
+  border-radius: 16px;
+}
+
+
+
+.dropdowndiv {
+  display: none;
+  position: absolute;
+}
+
+#sim_menu:hover .dropdowndiv {display: block;}

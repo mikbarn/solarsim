@@ -361,7 +361,7 @@ export class Mat4 {
       }
       
       static perspective(out, fovy, aspect, near, far) {
-        let f = 1.0 / Math.tan(fovy / 2),
+        var f = 1.0 / Math.tan(fovy / 2),
             nf;
         out[0] = f / aspect;
         out[1] = 0;
