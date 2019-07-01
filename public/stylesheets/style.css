@@ -74,7 +74,7 @@ border-radius: 16px;
 }
 
 #cam_speed_settings {
-  display: none;
+  display: block;
 }
 
 #foot_wrap {
@@ -88,19 +88,46 @@ border-radius: 16px;
 
 #sim_menu {
   position: relative;
+  min-height: 2em;
+  width: 100%;
+  padding: .5em;
+  /* background: green; */
 }
+
 
 #objectsbtn {
-  display: inline-block;
   cursor: pointer;
   border-radius: 16px;
+  border: 1px solid black;
+  margin: 0%;
+  padding: .5vw;
+  right: 2em;
+  position: absolute;
+  
 }
-
-
 
 .dropdowndiv {
   display: none;
   position: absolute;
+  right: 2em;
+  top: 2em;
 }
 
-#sim_menu:hover .dropdowndiv {display: block;}
+.object_viewer {
+  background: orange;
+  width: 20em;
+  height: 10em;
+  border: 1px solid red;
+  padding: 1em;
+}
+
+.thumb {
+  max-width: 20%;
+  max-height: 20%;
+}
+
+.object_viewer .thumb  img { 
+  max-width: 100%;
+  max-height: 100%;
+}
+#objects_panel:hover #objects_dropdown {display: block;}

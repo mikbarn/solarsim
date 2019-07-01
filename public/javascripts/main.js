@@ -169,7 +169,6 @@ class Camera {
     
     get_matrix(aspect) {
         if (this._aspect !== aspect) {
-            console.log('Setting pmat to aspect ', aspect);
             this.p_mat = Mat4.perspective(Mat4.identity(), this._fovY, aspect, 1.0, Infinity);
             this._aspect = aspect;
         }
@@ -350,6 +349,7 @@ class Renderer {
 var cam = new Camera();
 var sim_paused = false;
 var main_canvas = document.getElementById("canvas_1");
+var tracked = null;
 async function start() {
     let gl = getGLContext(main_canvas);
     let timer = new Timer();
@@ -380,9 +380,21 @@ async function start() {
             window.clearInterval(handle);;
         }
     }, 100);
+
+    objs.forEach((v,i,a) => {
+        let d = $("<div/>").addClass("object_viewer");
+        let d2 = $('<div/>').addClass('thumb');
+        d2.append(v.image);
+        d.append(d2);
+        let b = $("<button/>").html("Track");
+        b.click((ev) => {tracked = v; alert('tracking ' + v)});
+        d.append(b);
+        $('#objects_dropdown').append(d);
+    });
 }
 
 document.addEventListener("DOMContentLoaded", (ev) => {
     document.getElementById("pause_sim").onclick = (ev) => {sim_paused = !sim_paused};
     start();
+    
 });
