@@ -1,6 +1,10 @@
 import {genUnitSphereMesh, TriMesh} from './geo3d.js';
 import {Vec3, Mat4, Quat} from './mb-matrix.js';
 import {getProgram, getGLContext} from './glutils.js';
+import {Fixed, EARTH_RADIUS} from './constants.js';
+
+const PX = 'px', PY = 'py', PZ = 'pz', NX = 'nx', NY = 'NY', NZ = 'nz'
+const SKY_IMAGES = [PX, PY, PZ, NX, NY, NZ];
 
 class Resources {
 
@@ -69,9 +73,15 @@ var resources = new Resources();
 resources.load_shader('mainvs.txt', 's_vs');
 resources.load_shader('mainfs.txt', 's_fs');
 resources.load_shader('meshfs.txt', 'mesh_fs');
+resources.load_shader('skyvs.txt', 'sky_vs');
+resources.load_shader('skyfs.txt', 'sky_fs');
 resources.load_image('earth_daytime.jpg', 'earth');
 resources.load_image('moon.jpg', 'moon');
 resources.load_image('sun.jpg', 'sun');
+
+SKY_IMAGES.forEach((v,i,a) => {
+    resources.load_image(`skybox/${v}.png`, v);
+});
 
 var handle;
 
@@ -91,6 +101,7 @@ class Camera {
         this._aspect = 1;
         this._fovY = 120;
         this.p_mat = Mat4.perspective(Mat4.identity(), this._fovY, this._aspect, 1.0, Infinity);
+        this._slerp = {start: null, end: null, t: 0.0};
         
         let cam = this;
         let neg = Vec3.negate;
@@ -139,6 +150,21 @@ class Camera {
         };
     }
 
+    set_dirs() {
+        let rot_mat = this.rot_mat;
+        this.up[0] = rot_mat[4];
+        this.up[1] = rot_mat[5];
+        this.up[2] = rot_mat[6];
+
+        this.dir[0] = rot_mat[8];
+        this.dir[1] = rot_mat[9];
+        this.dir[2] = rot_mat[10];
+
+        this.right[0] = rot_mat[0];
+        this.right[1] = rot_mat[1];
+        this.right[2] = rot_mat[2];        
+    }
+
     update(delta) {
         if (this.omega_x !== 0.0 || this.omega_y !== 0.0) {
             let d_theta_x = this.omega_x*delta;
@@ -147,24 +173,47 @@ class Camera {
 
             Mat4.rotateY(rot_mat, rot_mat, d_theta_y);
             Mat4.rotateX(rot_mat, rot_mat, d_theta_x);
-            
-            this.up[0] = rot_mat[4];
-            this.up[1] = rot_mat[5];
-            this.up[2] = rot_mat[6];
-
-            this.dir[0] = rot_mat[8];
-            this.dir[1] = rot_mat[9];
-            this.dir[2] = rot_mat[10];
-
-            this.right[0] = rot_mat[0];
-            this.right[1] = rot_mat[1];
-            this.right[2] = rot_mat[2];
-
+            this.set_dirs();
             this.rot_mat = rot_mat;
+            console.log('Cam: ', this.pos, this.velocity, 'Dir:',this.dir, 'Right:', this.right, this.up, 'Len ', Vec3.len(this.dir));
+        }
+
+        if (Tracking.tracking && this._slerp.t === 0.0) {
+            let qstart = Quat.identity(), qend = Quat.identity();
+            let to = Vec3.subtract(Vec3.create(), Tracking.tracked.pos, this.pos);
+            Vec3.normalize(to, to);
+            to = Vec3.negate(to);
+            
+            let up = Vec3.create(0,1,0);
+            let right = Vec3.cross(Vec3.create(), up, to);
+            up = Vec3.cross(up, to, right);
+            let m = new Float32Array([...right, 0, ...up, 0, ...to, 0, 0, 0, 0, 1]);
+            Mat4.fromQuat(Mat4.identity(), Quat.fromMat3(qend, Mat4.toMat3(m)));
+
+            Quat.fromMat3(qstart, Mat4.toMat3(this.rot_mat));
+            this.set_dirs();
+            this._slerp = {start: qstart, end: qend, t: 0.001}
+            console.log('To ', to, 'Dir ', this.dir);
+            
+        }
+        let max = 1.0;
+        if (this._slerp.t > 0) {
+            this._slerp.t = Math.min(max, this._slerp.t + delta)
+            let q = Quat.slerp(Quat.identity(), this._slerp.start, this._slerp.end, this._slerp.t);
+            Mat4.fromQuat(this.rot_mat, q);
+            console.log('Tracking...', this._slerp.t);
+            this.set_dirs();
+        }
+        if (this._slerp.t >= max) {
+            console.log('Cam: ', this.pos, this.velocity, 'Dir:', Vec3.negate(this.dir), 'Right:', this.right, this.up, 'Len ', Vec3.len(this.dir));
+            Tracking.tracking = false;
+            this._slerp.t = 0.0;
+            let to =  Vec3.subtract(Vec3.create(), Tracking.tracked.pos, this.pos);
+            Vec3.normalize(to, to);
         }
         
         this.pos = Vec3.add(this.pos, this.pos, this.velocity);
-        console.log('Cam: ', this.pos, this.velocity, 'Dir:', this.dir, 'Right:', this.right, this.up);
+        //console.log('Cam: ', this.pos, this.velocity, 'Dir:', this.dir, 'Right:', this.right, this.up);
     }
     
     get_matrix(aspect) {
@@ -185,7 +234,7 @@ class Camera {
 }
 
 class Planet {
-    constructor(pos, vel, omega, radius, axial_tilt, image) {
+    constructor(pos, vel, omega, radius, axial_tilt, image, display) {
         this.pos = pos;
         this.vel = vel;
         this.radius = radius;
@@ -198,6 +247,7 @@ class Planet {
         this.omega = omega;
         this.rot_mat = Mat4.identity();
         this.instrinsic = 0.0;
+        this.display = display
     }
 
     update(delta) {
@@ -226,12 +276,17 @@ class Renderer {
         this.debug_program = {
             prog: getProgram(gl, resources.shaders.s_vs, resources.shaders.mesh_fs)
         };
+        this.sky_program = {
+            prog: getProgram(gl, resources.shaders.sky_vs, resources.shaders.sky_fs)
+        }
         let progs = [this.main_program, this.debug_program];
         progs.forEach((v) => {
             v.tex_coord_loc = gl.getAttribLocation(v.prog, "a_tex_coord");
             v.pos_att_loc = gl.getAttribLocation(v.prog, "a_position");
             v.norm_att_loc = gl.getAttribLocation(v.prog, "a_norms");
         })
+        this.sky_program.sampler_cube_loc = gl.getAttribLocation(this.sky_program.prog, 'u_sampler_cube');
+        this.sky_program.view_mat_loc = gl.getUniformLocation(this.sky_program.prog, 'view_matrix');
         this.vertex_buffer = gl.createBuffer();
         this.tri_buffer = gl.createBuffer();
         this.tex_buffer = gl.createBuffer();
@@ -242,6 +297,16 @@ class Renderer {
         document.getElementById("toggle_shader").onclick = (ev) => {
             this.main_enabled = !this.main_enabled;
         }
+        this.skybox_texture = gl.createTexture()
+        this.texture_targets = {
+            [PX]: gl.TEXTURE_CUBE_MAP_POSITIVE_X,
+            [PY]: gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
+            [PZ]: gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
+            [NX]: gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
+            [NY]: gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+            [NZ]: gl.TEXTURE_CUBE_MAP_NEGATIVE_Z,
+        }
+        console.log(this.texture_targets)
     }
 
     buffer_objects(gl) {
@@ -287,6 +352,11 @@ class Renderer {
             gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.tri_indices, gl.STATIC_DRAW);
             index_offset += mesh.tri_indices;
         }
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
+        let sky = new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]);
+        gl.bufferData(gl.ARRAY_BUFFER, sky, gl.STATIC_DRAW);
+        this.sky_program.pos_offset = pos_offset;
         
     }
 
@@ -297,19 +367,20 @@ class Renderer {
         gl.canvas.height = h;
         gl.viewport(0,0, w, h);
         let aspect = parseFloat(w) / parseFloat(h);
-        console.log('Aspect: ', aspect, w, h);
+        //console.log('Aspect: ', aspect, w, h);
         gl.clearColor(0,0,0,0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.enable(gl.DEPTH_TEST);
+        //gl.enable(gl.CULL_FACE);
         let model_mat_loc = null, view_mat_loc = null, light_pos_loc = null;
-
+        let cam_view_mat = cam.get_matrix(aspect);
         if (this.main_enabled) {
             model_mat_loc = gl.getUniformLocation(this.main_program.prog, 'model_matrix');
             view_mat_loc = gl.getUniformLocation(this.main_program.prog, 'view_matrix');
             light_pos_loc = gl.getUniformLocation(this.main_program.prog, 'u_world_light_pos');
             let intrinsic_loc = gl.getUniformLocation(this.main_program.prog, 'u_intrinsic_bright');
 
-            gl.uniformMatrix4fv(view_mat_loc, false, cam.get_matrix(aspect));
+            gl.uniformMatrix4fv(view_mat_loc, false, cam_view_mat);
             gl.uniform3fv(light_pos_loc, Vec3.create(0, 0, 0));
             for (let i = 0; i < this.obj_list.length; i++) {
                 let obj = this.obj_list[i];
@@ -325,6 +396,15 @@ class Renderer {
                 gl.uniform1f(intrinsic_loc, obj.instrinsic);
                 gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
             }
+            gl.useProgram(this.sky_program.prog);
+            gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.skybox_texture);
+            
+            SKY_IMAGES.forEach((v,i,a) => {
+                gl.texImage2D(this.texture_targets[v], 0,  gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, resources.images[v]);
+              });
+            //gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
+            gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+            gl.uniformMatrix4fv(this.sky_program.view_mat_loc, false, cam_view_mat);
         }
         else {
             gl.useProgram(this.debug_program.prog);
@@ -332,7 +412,7 @@ class Renderer {
             view_mat_loc = gl.getUniformLocation(this.debug_program.prog, 'view_matrix');
             light_pos_loc = gl.getUniformLocation(this.debug_program.prog, 'u_world_light_pos');
 
-            gl.uniformMatrix4fv(view_mat_loc, false, cam.get_matrix(aspect));
+            gl.uniformMatrix4fv(view_mat_loc, false, cam_view_mat);
 
             for (let i = 0; i < this.obj_list.length; i++) {
                 let obj = this.obj_list[i];
@@ -346,25 +426,52 @@ class Renderer {
         }
     }
 }
-var cam = new Camera();
+var cam = new Camera([0,0, Fixed.dist.e2s + 20]);
 var sim_paused = false;
 var main_canvas = document.getElementById("canvas_1");
-var tracked = null;
+var Tracking = {
+    tracked: null,
+    selected: null,
+    tracking: false
+}
+var DisplayStats = {
+    vars: {
+        cam2sun: Vec3.create()
+    },
+    elements: {
+        cam2sun: $('<h4/>')
+    },
+    setup: () => {
+        $('#stats_overlay_1').append(DisplayStats.elements.cam2sun);
+    },
+    update: () => {
+        Vec3.subtract(DisplayStats.vars.cam2sun, Vec3.create(), cam.pos);
+        let miles = Vec3.len(DisplayStats.vars.cam2sun) * EARTH_RADIUS;
+
+        DisplayStats.elements.cam2sun.html('Distance to Sun: ' + parseFloat(miles).toFixed(0) + ' mi');
+    }
+
+}
+
 async function start() {
     let gl = getGLContext(main_canvas);
     let timer = new Timer();
     
     await resources.wait_until_loaded();
     
-    let earth = new Planet(Vec3.create(0,0,150), Vec3.create(), .1, 1, .4, resources.images.earth); 
-    let moon = new Planet(Vec3.create(20,0,160), Vec3.create(), .3, .25, 0, resources.images.moon);
-    let sun = new Planet(Vec3.create(0,0,0), Vec3.create(), .01, 100, 0, resources.images.sun);
+    let earth = new Planet(Vec3.create(0,0,Fixed.dist.e2s), Vec3.create(), .1, Fixed.rad.earth, .4, resources.images.earth, {name: 'Earth'}); 
+    let moon = new Planet(Vec3.create(Fixed.dist.m2e,0,Fixed.dist.e2s), Vec3.create(), .3, Fixed.rad.moon, 0, resources.images.moon, {name: 'Moon'});
+    let sun = new Planet(Vec3.create(0,0,0), Vec3.create(), .01, Fixed.rad.sun, 0, resources.images.sun, {name: 'Sun'});
     sun.instrinsic = 2.5;
     earth.instrinsic = .5;
     let objs = [earth, moon, sun];
     let renderer = new Renderer(gl, objs);
     handle = window.setInterval(()=> {
+        if (Tracking.tracked !== null) {
+
+        }
         try { 
+            DisplayStats.update();
             timer.start(); 
             cam.update(.1);
             if (!sim_paused) {
@@ -386,15 +493,26 @@ async function start() {
         let d2 = $('<div/>').addClass('thumb');
         d2.append(v.image);
         d.append(d2);
-        let b = $("<button/>").html("Track");
-        b.click((ev) => {tracked = v; alert('tracking ' + v)});
-        d.append(b);
-        $('#objects_dropdown').append(d);
+        d.append("<h4>"+v.display.name+"</h4");
+        d.click((ev)=> {
+            if (Tracking.selected) {
+                Tracking.selected.removeClass('selected_object');
+            }
+            d.addClass('selected_object');
+            Tracking.tracked = v;
+            Tracking.selected = d;
+        });
+        $('#objects_list').append(d);
+        
+    });
+    $("#object_target_btn").click((ev) => {
+        Tracking.tracking = true;
     });
 }
 
 document.addEventListener("DOMContentLoaded", (ev) => {
     document.getElementById("pause_sim").onclick = (ev) => {sim_paused = !sim_paused};
+    DisplayStats.setup();
     start();
     
 });

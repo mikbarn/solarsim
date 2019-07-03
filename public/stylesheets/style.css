@@ -21,13 +21,35 @@ a {
   color: #00B7FF;
 }
 
+#main_can_wrap {
+  position: relative;
+  width: 100%;
+  height: 500px;
+  border-bottom: 1px solid black;
+}
 
+#stats_overlay_1 {
+  width: 20%;
+  height: 30%;
+  position: absolute;
+  top: 0%;
+  left: 0%;
+  color: white;
+}
 
 #canvas_1 {
-    clear:both;
+    z-index: -5;
     width:100%;
-    height:500px;
+    height:100%;
     background: black;
+    position: absolute;
+    top: 0%;
+    left: 0%;
+}
+
+#control {
+  position: static;
+  z-index: 1;
 }
 
 #cam_control > * {
@@ -36,6 +58,9 @@ a {
   margin: 2px 2px;
   padding: .5em;
   text-align: center;
+  
+  top: 10%;
+  
   /* max-width: 200px; */
 }
 
@@ -87,6 +112,7 @@ border-radius: 16px;
 }
 
 #sim_menu {
+  z-index: 1;
   position: relative;
   min-height: 2em;
   width: 100%;
@@ -95,9 +121,8 @@ border-radius: 16px;
 }
 
 
-#objectsbtn {
+#objects_tab {
   cursor: pointer;
-  border-radius: 16px;
   border: 1px solid black;
   margin: 0%;
   padding: .5vw;
@@ -106,19 +131,42 @@ border-radius: 16px;
   
 }
 
-.dropdowndiv {
+#objects_dropdown {
   display: none;
   position: absolute;
   right: 2em;
   top: 2em;
 }
 
+
 .object_viewer {
   background: orange;
   width: 20em;
-  height: 10em;
+  height: 5em;
   border: 1px solid red;
   padding: 1em;
+}
+
+.object_viewer:hover {
+  background: #ddd;
+  cursor: pointer;
+
+}
+
+.selected_object {
+  background: green;
+}
+
+.object_viewer * {
+  display: block;
+  float: left;
+  margin: .5em .5em;
+}
+
+#objects_controls {
+  background: orange;
+  width: 20em;
+  height: 5em;
 }
 
 .thumb {

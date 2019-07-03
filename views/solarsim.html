@@ -1,16 +1,26 @@
 <div id="content_wrap">
     <div id="sim_menu">
         <div id="objects_panel">
-            <div id="objectsbtn" class="dropdownbtn">Objects</div>
-            <div id="objects_dropdown" class="dropdowndiv">
-                <!-- <div class="object_viewer"></div>
-                <div class="object_viewer"></div>
-                <div class="object_viewer"></div> -->
+            <div id="objects_tab">Objects</div>
+            <div id="objects_dropdown">
+                <div id="objects_list">
+
+                </div>
+                <div id="objects_controls">
+                    <button id="object_target_btn">Target</button>
+                    <button id="object_track_btn">Follow</button>
+                </div>
             </div>
+
         </div>
 
     </div>
-    <canvas id="canvas_1"></canvas>
+    <div id="main_can_wrap">
+        <canvas id="canvas_1"></canvas>
+        <div id="stats_overlay_1">
+            
+        </div>
+    </div>
 
     <div id="control">
         <div id="cam_control">
@@ -83,8 +93,8 @@
 
         </div>
         <div id="cam_speed_settings">
-            <input id="rotate_speed" type="range" min=0.02 max=1.57 value=.5 />
-            <input id="movement_speed" type="range" min=0.1 max=10 value=4 />
+            <input id="rotate_speed" type="range" min=0.02 max=1.57 value=0.9 />
+            <input id="movement_speed" type="range" min=0.1 max=100 value=4 />
         </div>
     </div>
     <div>
