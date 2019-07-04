@@ -167,6 +167,7 @@ class Camera {
     }
 
     update(delta) {
+        this.pos = Vec3.add(this.pos, this.pos, Vec3.scale(Vec3.create(), this.velocity, delta));
         if (this.omega_x !== 0.0 || this.omega_y !== 0.0) {
             let d_theta_x = this.omega_x*delta;
             let d_theta_y = this.omega_y*delta;
@@ -179,15 +180,44 @@ class Camera {
             console.log('Cam: ', this.pos, this.velocity, 'Dir:',this.dir, 'Right:', this.right, this.up, 'Len ', Vec3.len(this.dir));
         }
 
-        if (Tracking.tracking && this._slerp.t === 0.0) {
-            let qstart = Quat.identity(), qend = Quat.identity();
-            let to = Vec3.subtract(Vec3.create(), Tracking.tracked.pos, this.pos);
+        if (Tracking.locked) {
+            
+            
+            let to = Vec3.subtract(Vec3.create(), Tracking.seleced_js_obj.pos, this.pos);
+            Vec3.negate(to);
+            let dist = Vec3.len(to) - Tracking.seleced_js_obj.radius - 2;
+            Vec3.normalize(to, to);
+            Vec3.scale(to, to, dist/10);
+            if (dist > .0001) {
+                Vec3.add(this.pos, this.pos, to);
+            }else {
+                this.velocity = [0,0,0];
+            }
+
+        }
+
+        if (Tracking.targeting || Tracking.auto_targeting) {
+            
+            let to = Vec3.subtract(Vec3.create(), Tracking.seleced_js_obj.pos, this.pos);
             Vec3.normalize(to, to);
             to = Vec3.negate(to);
+
+            if (Tracking.auto_targeting) {
+                if (Vec3.dot(this.dir, to) > .999 || Vec3.len(this.velocity) > 0.00001){
+                    return;
+                }
+            }
             
             let up = Vec3.create(0,1,0);
+            if (Math.abs(Vec3.dot(to, up)) > .9) {
+                up = Vec3.create(-1, 0, 0);
+            }
             let right = Vec3.cross(Vec3.create(), up, to);
+            Vec3.normalize(right, right);
             up = Vec3.cross(up, to, right);
+            Vec3.normalize(up, up);
+
+            let qstart = Quat.identity(), qend = Quat.identity();
             let m = new Float32Array([...right, 0, ...up, 0, ...to, 0, 0, 0, 0, 1]);
             Mat4.fromQuat(Mat4.identity(), Quat.fromMat3(qend, Mat4.toMat3(m)));
 
@@ -195,6 +225,7 @@ class Camera {
             this.set_dirs();
             this._slerp = {start: qstart, end: qend, t: 0.001}
             console.log('To ', to, 'Dir ', this.dir);
+            Tracking.targeting = false;
             
         }
         let max = 1.0;
@@ -207,13 +238,13 @@ class Camera {
         }
         if (this._slerp.t >= max) {
             console.log('Cam: ', this.pos, this.velocity, 'Dir:', Vec3.negate(this.dir), 'Right:', this.right, this.up, 'Len ', Vec3.len(this.dir));
-            Tracking.tracking = false;
+            Tracking.targeting = false;
             this._slerp.t = 0.0;
-            let to =  Vec3.subtract(Vec3.create(), Tracking.tracked.pos, this.pos);
+            let to =  Vec3.subtract(Vec3.create(), Tracking.seleced_js_obj.pos, this.pos);
             Vec3.normalize(to, to);
         }
         
-        this.pos = Vec3.add(this.pos, this.pos, this.velocity);
+        
         //console.log('Cam: ', this.pos, this.velocity, 'Dir:', this.dir, 'Right:', this.right, this.up);
     }
     
@@ -289,8 +320,6 @@ class Renderer {
             pos_att_loc: gl.getAttribLocation(mesh, "a_position"),
             model_mat_loc: gl.getUniformLocation(mesh, 'model_matrix'),
             view_mat_loc: gl.getUniformLocation(mesh, 'view_matrix'),
-            // light_pos_loc: gl.getUniformLocation(mesh, 'u_world_light_pos'),
-            // intrinsic_loc: gl.getUniformLocation(mesh, 'u_intrinsic_bright'),
         };
         let m = Mat4.identity();
         this.sky = {
@@ -434,9 +463,11 @@ var cam = new Camera([0,0, Fixed.dist.e2s + 20]);
 var sim_paused = false;
 var main_canvas = document.getElementById("canvas_1");
 var Tracking = {
-    tracked: null,
-    selected: null,
-    tracking: false
+    seleced_js_obj: null,
+    selected_dom_obj: null,
+    targeting: false,
+    auto_targeting: false,
+    locked: false
 }
 var DisplayStats = {
     vars: {
@@ -471,7 +502,7 @@ async function start() {
     let objs = [earth, moon, sun];
     let renderer = new Renderer(gl, objs);
     handle = window.setInterval(()=> {
-        if (Tracking.tracked !== null) {
+        if (Tracking.seleced_js_obj !== null) {
 
         }
         try { 
@@ -499,18 +530,25 @@ async function start() {
         d.append(d2);
         d.append("<h4>"+v.display.name+"</h4");
         d.click((ev)=> {
-            if (Tracking.selected) {
-                Tracking.selected.removeClass('selected_object');
+            if (Tracking.selected_dom_obj) {
+                Tracking.selected_dom_obj.removeClass('selected_object');
             }
             d.addClass('selected_object');
-            Tracking.tracked = v;
-            Tracking.selected = d;
+            Tracking.seleced_js_obj = v;
+            Tracking.selected_dom_obj = d;
         });
         $('#objects_list').append(d);
         
     });
+
     $("#object_target_btn").click((ev) => {
-        Tracking.tracking = true;
+        Tracking.targeting = true;
+    });
+    $("#object_auto_target_btn").click((ev) => {
+        Tracking.auto_targeting = !Tracking.auto_targeting;
+    });
+    $("#object_lock_btn").click((ev) => {
+        Tracking.locked = !Tracking.locked;
     });
 }
 
