@@ -7,7 +7,7 @@ attribute vec2 a_tex_coord;
 varying vec2 v_tex_coord;
 varying vec3 v_col_pos;
 
-uniform sampler2D uSampler;
+uniform sampler2D u_sampler;
 
 uniform vec3 u_world_light_pos;
 uniform float u_intrinsic_bright;

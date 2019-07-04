@@ -1,4 +1,4 @@
-import {genUnitSphereMesh, TriMesh} from './geo3d.js';
+import {genUnitSphereMesh, TriMesh, SkyBoxVertices} from './geo3d.js';
 import {Vec3, Mat4, Quat} from './mb-matrix.js';
 import {getProgram, getGLContext} from './glutils.js';
 import {Fixed, EARTH_RADIUS} from './constants.js';
@@ -99,7 +99,7 @@ class Camera {
         this.omega_y = 0.0;
         this.rot_mat = new Float32Array([...this.right, 0, ...this.up, 0, ...this.dir, 0, 0, 0, 0, 1])
         this._aspect = 1;
-        this._fovY = 1.04;
+        this._fovY = .90;
         this._maxZ = Infinity;
         this.p_mat = Mat4.perspective(Mat4.identity(), this._fovY, this._aspect, 1.0,  this._maxZ);
         this._slerp = {start: null, end: null, t: 0.0};
@@ -230,24 +230,6 @@ class Camera {
         Mat4.multiply(mat, this.p_mat, mat);
         return mat;
     }
-
-    get_matrix2(aspect) {
-        if (this._aspect !== aspect) {
-            this.p_mat = Mat4.perspective(Mat4.identity(), this._fovY, aspect, 1.0,  this._maxZ);
-            this._aspect = aspect;
-        }
-        
-        let mat = Mat4.identity();
-        //let mrot = new Float32Array([...this.right, 0, ...this.up, 0, ...this.dir, 0, 0, 0, 0, 1])
-        //Mat4.translate(mat, mat, this.pos);
-        Mat4.multiply(mat, mat, this.rot_mat);
-        Mat4.invert(mat, mat);
-        Mat4.multiply(mat, this.p_mat, mat);
-        Mat4.invert(mat, mat);
-        return mat;
-    }
-
-
 }
 
 class Planet {
@@ -287,28 +269,47 @@ class Planet {
 
 class Renderer {
     constructor(gl, object_list) {
-        this.main_program = {
-            prog: getProgram(gl, resources.shaders.s_vs, resources.shaders.s_fs)
+        let main = getProgram(gl, resources.shaders.s_vs, resources.shaders.s_fs);
+        let mesh = getProgram(gl, resources.shaders.s_vs, resources.shaders.mesh_fs);
+        let sky = getProgram(gl, resources.shaders.sky_vs, resources.shaders.sky_fs);
+        
+        this.main = {
+            prog: main,
+            tex_coord_loc: gl.getAttribLocation(main, "a_tex_coord"),
+            pos_att_loc: gl.getAttribLocation(main, "a_position"),
+            model_mat_loc: gl.getUniformLocation(main, 'model_matrix'),
+            view_mat_loc: gl.getUniformLocation(main, 'view_matrix'),
+            light_pos_loc: gl.getUniformLocation(main, 'u_world_light_pos'),
+            intrinsic_loc: gl.getUniformLocation(main, 'u_intrinsic_bright'),
         };
-        this.debug_program = {
-            prog: getProgram(gl, resources.shaders.s_vs, resources.shaders.mesh_fs)
+
+        this.mesh = {
+            prog: mesh,
+            tex_coord_loc: gl.getAttribLocation(mesh, "a_tex_coord"),
+            pos_att_loc: gl.getAttribLocation(mesh, "a_position"),
+            model_mat_loc: gl.getUniformLocation(mesh, 'model_matrix'),
+            view_mat_loc: gl.getUniformLocation(mesh, 'view_matrix'),
+            // light_pos_loc: gl.getUniformLocation(mesh, 'u_world_light_pos'),
+            // intrinsic_loc: gl.getUniformLocation(mesh, 'u_intrinsic_bright'),
         };
-        this.sky_program = {
-            prog: getProgram(gl, resources.shaders.sky_vs, resources.shaders.sky_fs)
-        };
-        let progs = [this.main_program, this.debug_program];
-        progs.forEach((v) => {
-            v.tex_coord_loc = gl.getAttribLocation(v.prog, "a_tex_coord");
-            v.pos_att_loc = gl.getAttribLocation(v.prog, "a_position");
-            v.norm_att_loc = gl.getAttribLocation(v.prog, "a_norms");
-        })
-        this.sky_program.sampler_cube_loc = gl.getUniformLocation(this.sky_program.prog, 'u_sampler_cube');
-        this.sky_program.view_mat_loc = gl.getUniformLocation(this.sky_program.prog, 'view_matrix');
-        this.sky_program.pos_att_loc = gl.getAttribLocation(this.sky_program.prog, 'a_position');
-        this.sky_buffer = gl.createBuffer();
-        this.vertex_buffer = gl.createBuffer();
-        this.tri_buffer = gl.createBuffer();
-        this.tex_buffer = gl.createBuffer();
+        let m = Mat4.identity();
+        this.sky = {
+            prog: sky,
+            sampler_cube_loc: gl.getUniformLocation(sky, 'u_sampler_cube'),
+            view_mat_loc: gl.getUniformLocation(sky, 'view_matrix'),
+            pos_att_loc: gl.getAttribLocation(sky, 'a_position'),
+            texture: gl.createTexture(),
+            texture_targets: {
+                [PX]: gl.TEXTURE_CUBE_MAP_POSITIVE_X,
+                [PY]: gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
+                [PZ]: gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
+                [NX]: gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
+                [NY]: gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+                [NZ]: gl.TEXTURE_CUBE_MAP_NEGATIVE_Z,
+            },
+            v_buffer: gl.createBuffer(),
+            scale_matrix: Mat4.scale(m, m, [100000, 100000, 100000]),
+        }
         this.obj_data = {};
         this.obj_list = object_list;
        
@@ -316,68 +317,41 @@ class Renderer {
         document.getElementById("toggle_shader").onclick = (ev) => {
             this.main_enabled = !this.main_enabled;
         }
-        this.skybox_texture = gl.createTexture()
-        this.texture_targets = {
-            [PX]: gl.TEXTURE_CUBE_MAP_POSITIVE_X,
-            [PY]: gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
-            [PZ]: gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
-            [NX]: gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
-            [NY]: gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
-            [NZ]: gl.TEXTURE_CUBE_MAP_NEGATIVE_Z,
-        }
         this.buffer_objects(gl);
-        console.log(this.texture_targets);
     }
 
     buffer_objects(gl) {
-        let progs = [this.main_program, this.debug_program];
-        let tex_coord_offset = 0;
-        let pos_offset = 0;
-        let index_offset = 0;
         for (let i = 0; i < this.obj_list.length; i++) {
-            let tex = gl.createTexture();
             let obj = this.obj_list[i];
             let mesh = obj.triangle_mesh;
+      
+            let texture = gl.createTexture();
+            let v_buffer = gl.createBuffer();
+            let t_buffer = gl.createBuffer();
+            let i_buffer = gl.createBuffer();
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, t_buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, mesh.tex_coords, gl.STATIC_DRAW);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, v_buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, mesh.vertices, gl.STATIC_DRAW);
+
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, i_buffer);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.tri_indices, gl.STATIC_DRAW);
 
             this.obj_data[obj] = {
-                tex_coord_offset: tex_coord_offset,
-                pos_offset: pos_offset,
-                index_offset: index_offset,
-                texture: tex
-            }
-            //gl.activeTexture(gl.TEXTURE0+i) 
-            //gl.bindTexture(gl.TEXTURE_2D, tex);
-            //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, obj.image);
-            //gl.generateMipmap(gl.TEXTURE_2D);
-
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.tex_buffer);
-            gl.bufferData(gl.ARRAY_BUFFER, mesh.tex_coords, gl.STATIC_DRAW);
-            tex_coord_offset += mesh.tex_coords.length / 2;
-            
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
-            gl.bufferData(gl.ARRAY_BUFFER, mesh.vertices, gl.STATIC_DRAW);
-            pos_offset += mesh.vertices.length; 
-    
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.tri_buffer);
-            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, mesh.tri_indices, gl.STATIC_DRAW);
-            index_offset += mesh.tri_indices;
+                texture: texture,
+                v_buffer: v_buffer,
+                t_buffer: t_buffer,
+                i_buffer: i_buffer
+            };
         }
-
-        gl.useProgram(this.sky_program.prog);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.sky_buffer);
-        let sky = new Float32Array( [
-            -1, -1,
-             1, -1,
-            -1,  1,
-            -1,  1,
-             1, -1,
-             1,  1,
-          ]);
-        gl.bufferData(gl.ARRAY_BUFFER, sky, gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.sky.v_buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, SkyBoxVertices, gl.STATIC_DRAW);
     }
 
     draw(gl) {
-        gl.useProgram(this.main_program.prog); 
+        
         let w = gl.canvas.clientWidth, h = gl.canvas.clientHeight;
         gl.canvas.width = w;
         gl.canvas.height = h;
@@ -388,69 +362,72 @@ class Renderer {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.enable(gl.DEPTH_TEST);
         //gl.enable(gl.CULL_FACE);
-        let model_mat_loc = null, view_mat_loc = null, light_pos_loc = null;
         let cam_view_mat = cam.get_matrix(aspect);
         
-        if (this.main_enabled) {
-            model_mat_loc = gl.getUniformLocation(this.main_program.prog, 'model_matrix');
-            view_mat_loc = gl.getUniformLocation(this.main_program.prog, 'view_matrix');
-            light_pos_loc = gl.getUniformLocation(this.main_program.prog, 'u_world_light_pos');
-            let intrinsic_loc = gl.getUniformLocation(this.main_program.prog, 'u_intrinsic_bright');
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.vertex_buffer);
-            gl.enableVertexAttribArray(this.main_program.pos_att_loc);
-            gl.vertexAttribPointer(this.main_program.pos_att_loc, 3, gl.FLOAT, false, 0, 0);
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.tex_buffer);
-            gl.enableVertexAttribArray(this.main_program.tex_coord_loc);
-            gl.vertexAttribPointer(this.main_program.tex_coord_loc, 2, gl.FLOAT, false, 0, 0);
-            gl.uniformMatrix4fv(view_mat_loc, false, cam_view_mat);
-            gl.uniform3fv(light_pos_loc, Vec3.create(0, 0, 0));
-            for (let i = 0; i < this.obj_list.length; i++) {
-                let obj = this.obj_list[i];
-                let obj_data = this.obj_data[obj];
-                gl.bindTexture(gl.TEXTURE_2D, obj_data.texture);
+        let source = this.main_enabled? this.main: this.mesh;
+
+        var {pos_att_loc, tex_coord_loc, prog, model_mat_loc, view_mat_loc, light_pos_loc, intrinsic_loc} = source;
+        gl.useProgram(prog); 
+        gl.uniformMatrix4fv(view_mat_loc, false, cam_view_mat);
+        gl.uniform3fv(light_pos_loc, Vec3.create(0, 0, 0));
+        for (let i = 0; i < this.obj_list.length; i++) {
+            let obj = this.obj_list[i];
+            let {texture, v_buffer, t_buffer, i_buffer} =  this.obj_data[obj];
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, v_buffer);
+            gl.enableVertexAttribArray(pos_att_loc);
+            gl.vertexAttribPointer(pos_att_loc, 3, gl.FLOAT, false, 0, 0);
+
+            gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
+
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, i_buffer);
+            
+            if (this.main_enabled) {
+                gl.bindBuffer(gl.ARRAY_BUFFER, t_buffer)
+                gl.enableVertexAttribArray(tex_coord_loc);
+                gl.vertexAttribPointer(tex_coord_loc, 2, gl.FLOAT, false, 0, 0);
+
+                gl.bindTexture(gl.TEXTURE_2D, texture);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,gl.UNSIGNED_BYTE, obj.image);
                 gl.generateMipmap(gl.TEXTURE_2D);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-                //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-                //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-                gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
+
                 gl.uniform1f(intrinsic_loc, obj.instrinsic);
-                gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
+    
+                gl.drawElements(gl.TRIANGLES, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, 0);
             }
-            gl.useProgram(this.sky_program.prog);
-            gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.skybox_texture);
-            
-            SKY_IMAGES.forEach((v,i,a) => {
-                gl.texImage2D(this.texture_targets[v], 0,  gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, resources.images[v]);
-              });
-            gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
-            gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-            gl.uniformMatrix4fv(this.sky_program.view_mat_loc, false, cam.get_matrix2(aspect));
-            gl.uniform1i(this.sky_program.sampler_cube_loc, 0);
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.sky_buffer);
-            gl.enableVertexAttribArray(this.sky_program.pos_att_loc);
-            gl.vertexAttribPointer(this.sky_program.pos_att_loc, 2, gl.FLOAT, false, 0, 0);
-            gl.drawArrays(gl.TRIANGLES, 0, 6);
-        }
-        else {
-            gl.useProgram(this.debug_program.prog);
-            model_mat_loc = gl.getUniformLocation(this.debug_program.prog, 'model_matrix');
-            view_mat_loc = gl.getUniformLocation(this.debug_program.prog, 'view_matrix');
-            light_pos_loc = gl.getUniformLocation(this.debug_program.prog, 'u_world_light_pos');
-
-            gl.uniformMatrix4fv(view_mat_loc, false, cam_view_mat);
-
-            for (let i = 0; i < this.obj_list.length; i++) {
-                let obj = this.obj_list[i];
-                let obj_data = this.obj_data[obj];
-
-                gl.uniformMatrix4fv(model_mat_loc, false, obj.matrix);
-                gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, obj_data.index_offset);
-                //
-                gl.drawArrays(gl.POINTS, 0, obj.triangle_mesh.vertices.length/3);
+            else {
+                //gl.drawArrays(gl.LINE_STRIP, 0, obj.triangle_mesh.vertices.length/3);
+                gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, 0);
             }
         }
+        
+        var {pos_att_loc, prog, texture, sampler_cube_loc, view_mat_loc, texture_targets, v_buffer, scale_matrix} = this.sky;
+        gl.useProgram(prog);
+        gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+        
+        SKY_IMAGES.forEach((v,i,a) => {
+            gl.texImage2D(texture_targets[v], 0,  gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, resources.images[v]);
+        });
+        gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        let m = Mat4.identity();
+        Mat4.multiply(m, m, cam.rot_mat);
+        Mat4.invert(m, m);
+        Mat4.multiply(m, scale_matrix, m);
+        Mat4.multiply(m, cam.p_mat, m);
+        gl.uniformMatrix4fv(view_mat_loc, false, m);
+        gl.uniform1i(sampler_cube_loc, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, v_buffer);
+        gl.enableVertexAttribArray(pos_att_loc);
+        gl.vertexAttribPointer(pos_att_loc, 3, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.TRIANGLES, 0, 36);
+        
+        //gl.drawArrays(gl.LINE_STRIP, 0, 36);
     }
 }
 var cam = new Camera([0,0, Fixed.dist.e2s + 20]);
