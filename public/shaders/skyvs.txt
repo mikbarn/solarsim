@@ -1,13 +1,15 @@
 uniform samplerCube u_cube_sampler;
 
-uniform mat4 view_matrix;
+//uniform mat4 view_matrix;
 
 attribute vec4 a_position;
 varying vec4 v_position;
 
 void main() {
     v_position = a_position;
-    gl_Position = view_matrix * a_position;
-    gl_PointSize = 2.0;
+    gl_Position = a_position;
+    //gl_Position.z = 1.0;
+    //gl_Position.w = gl_Position.z;
+    //gl_PointSize = 2.0;
     
 }
