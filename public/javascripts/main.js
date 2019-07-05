@@ -118,7 +118,9 @@ class Camera {
         let move_slider = document.getElementById("movement_speed");
         Object.keys(settings).forEach((k) => {
             document.getElementById(k).onmousedown = (ev) => {Vec3.scale(cam.velocity, settings[k](), parseFloat(move_slider.value)); };
-            document.getElementById(k).onmouseup = (ev) => {cam.velocity = [0,0,0]};
+            let f = (ev) => {cam.velocity = [0,0,0]; Tracking.disable_lock() };
+            document.getElementById(k).onmouseup = f;
+            document.getElementById(k).onmouseleave = f;
         });
         var get_rot_speed = function() { return parseFloat(document.getElementById("rotate_speed").value) };
         let angles = {
@@ -129,7 +131,9 @@ class Camera {
         }
         Object.keys(angles).forEach((k) => {
             document.getElementById(k).onmousedown = angles[k];
-            document.getElementById(k).onmouseup = (ev) => {cam.omega_x = 0.0, cam.omega_y = 0.0};
+            let f = (ev) => {cam.omega_x = 0.0; cam.omega_y = 0.0; Tracking.disable_auto_targeting()};
+            document.getElementById(k).onmouseup = f;
+            document.getElementById(k).onmouseleave = f;
         });
 
         document.getElementById("cam_recenter").onclick = (ev) => {
@@ -180,12 +184,10 @@ class Camera {
             console.log('Cam: ', this.pos, this.velocity, 'Dir:',this.dir, 'Right:', this.right, this.up, 'Len ', Vec3.len(this.dir));
         }
 
-        if (Tracking.locked) {
-            
-            
-            let to = Vec3.subtract(Vec3.create(), Tracking.seleced_js_obj.pos, this.pos);
+        if (Tracking.locked_to_js_obj) {
+            let to = Vec3.subtract(Vec3.create(), Tracking.locked_to_js_obj.pos, this.pos);
             Vec3.negate(to);
-            let dist = Vec3.len(to) - Tracking.seleced_js_obj.radius - 2;
+            let dist = Vec3.len(to) - Tracking.locked_to_js_obj.radius - 2;
             Vec3.normalize(to, to);
             Vec3.scale(to, to, dist/10);
             if (dist > .0001) {
@@ -196,13 +198,14 @@ class Camera {
 
         }
 
-        if (Tracking.targeting || Tracking.auto_targeting) {
-            
-            let to = Vec3.subtract(Vec3.create(), Tracking.seleced_js_obj.pos, this.pos);
+        let targeted_obj = Tracking.targeted_js_obj || Tracking.auto_targeted_js_obj;
+
+        if (targeted_obj && this._slerp.t === 0.0) {
+            let to = Vec3.subtract(Vec3.create(), targeted_obj.pos, this.pos);
             Vec3.normalize(to, to);
             to = Vec3.negate(to);
 
-            if (Tracking.auto_targeting) {
+            if (Tracking.auto_targeted_js_obj) {
                 if (Vec3.dot(this.dir, to) > .999 || Vec3.len(this.velocity) > 0.00001){
                     return;
                 }
@@ -225,23 +228,25 @@ class Camera {
             this.set_dirs();
             this._slerp = {start: qstart, end: qend, t: 0.001}
             console.log('To ', to, 'Dir ', this.dir);
-            Tracking.targeting = false;
             
         }
         let max = 1.0;
         if (this._slerp.t > 0) {
+            if (!targeted_obj) {
+                this._slerp.t = 0.0;
+                return;
+            }
             this._slerp.t = Math.min(max, this._slerp.t + delta)
             let q = Quat.slerp(Quat.identity(), this._slerp.start, this._slerp.end, this._slerp.t);
             Mat4.fromQuat(this.rot_mat, q);
             console.log('Tracking...', this._slerp.t);
             this.set_dirs();
         }
+
         if (this._slerp.t >= max) {
-            console.log('Cam: ', this.pos, this.velocity, 'Dir:', Vec3.negate(this.dir), 'Right:', this.right, this.up, 'Len ', Vec3.len(this.dir));
-            Tracking.targeting = false;
+            console.log('Cam: ', this.pos, this.velocity, 'Dir:', Vec3.negate(this.dir), 'Right:', this.right, this.up, 'Len ', Vec3.len(this.dir));            
             this._slerp.t = 0.0;
-            let to =  Vec3.subtract(Vec3.create(), Tracking.seleced_js_obj.pos, this.pos);
-            Vec3.normalize(to, to);
+            Tracking.targeted_js_obj = null;
         }
         
         
@@ -463,18 +468,53 @@ var cam = new Camera([0,0, Fixed.dist.e2s + 20]);
 var sim_paused = false;
 var main_canvas = document.getElementById("canvas_1");
 var Tracking = {
-    seleced_js_obj: null,
-    selected_dom_obj: null,
-    targeting: false,
-    auto_targeting: false,
-    locked: false
+    targeted_js_obj: null,
+    auto_targeted_js_obj: null,
+    locked_to_js_obj: null,
+    _lock_button: null,
+    _auto_button: null,
+    target: (obj) => {
+        Tracking.targeted_js_obj = obj;
+        Tracking.disable_auto_targeting();
+    },
+    disable_auto_targeting: () => {
+        if(Tracking._auto_button) {
+            Tracking._auto_button.removeClass("t_btn_on");
+        }
+        Tracking.auto_targeted_js_obj = null;
+    },
+    disable_lock: () => {
+        if(Tracking._lock_button) {
+            Tracking._lock_button.removeClass("t_btn_on");
+        }
+        Tracking.locked_to_js_obj = null;
+    },
+    enable_auto_targeting: (button, obj) => {
+        Tracking.targeted_js_obj = null;
+        let toggle = obj == Tracking.auto_targeted_js_obj;
+        Tracking.disable_auto_targeting();
+        if (!toggle) {
+            Tracking.auto_targeted_js_obj = obj;
+            Tracking._auto_button = button;
+            Tracking._auto_button.addClass("t_btn_on");
+        }
+    },
+    enable_lock: (button, obj) => {
+        let toggle = obj == Tracking.locked_to_js_obj;
+        Tracking.disable_lock();
+        if (!toggle) {
+            Tracking.locked_to_js_obj = obj;
+            Tracking._lock_button = button;
+            Tracking._lock_button.addClass("t_btn_on");
+        }
+    }
 }
 var DisplayStats = {
     vars: {
         cam2sun: Vec3.create()
     },
     elements: {
-        cam2sun: $('<h4/>')
+        cam2sun: $('<span/>')
     },
     setup: () => {
         $('#stats_overlay_1').append(DisplayStats.elements.cam2sun);
@@ -502,9 +542,6 @@ async function start() {
     let objs = [earth, moon, sun];
     let renderer = new Renderer(gl, objs);
     handle = window.setInterval(()=> {
-        if (Tracking.seleced_js_obj !== null) {
-
-        }
         try { 
             DisplayStats.update();
             timer.start(); 
@@ -528,27 +565,19 @@ async function start() {
         let d2 = $('<div/>').addClass('thumb');
         d2.append(v.image);
         d.append(d2);
-        d.append("<h4>"+v.display.name+"</h4");
-        d.click((ev)=> {
-            if (Tracking.selected_dom_obj) {
-                Tracking.selected_dom_obj.removeClass('selected_object');
-            }
-            d.addClass('selected_object');
-            Tracking.seleced_js_obj = v;
-            Tracking.selected_dom_obj = d;
-        });
+        d.append("<span>"+v.display.name+"</span>");
+
+        let b1 = $("<button/>").addClass("targeting_button").html("Target");
+        let b2 = $("<button/>").addClass("targeting_button").html("Auto Target");
+        let b3 = $("<button/>").addClass("targeting_button").html("Attach To");
+
+        b1.click((ev) => {Tracking.target(v)});
+        b2.click((ev) => {Tracking.enable_auto_targeting(b2, v)});
+        b3.click((ev) => {Tracking.enable_lock(b3, v)});
+
+        d.append([b1, b2, b3]);
         $('#objects_list').append(d);
         
-    });
-
-    $("#object_target_btn").click((ev) => {
-        Tracking.targeting = true;
-    });
-    $("#object_auto_target_btn").click((ev) => {
-        Tracking.auto_targeting = !Tracking.auto_targeting;
-    });
-    $("#object_lock_btn").click((ev) => {
-        Tracking.locked = !Tracking.locked;
     });
 }
 

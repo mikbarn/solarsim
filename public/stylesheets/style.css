@@ -1,6 +1,6 @@
 body {
   /* padding: 50px; */
-  font: 14px "Arial", Helvetica, Arial, sans-serif;
+  font: 14px "Verdana", Helvetica, Arial, sans-serif;
   /* background-image: url("../images/2k_stars.jpg"); */
   /* background-color: rgba(.2, .2, .2, .2); */
   width: 90%;
@@ -34,7 +34,9 @@ a {
   position: absolute;
   top: 0%;
   left: 0%;
-  color: white;
+  color: rgba(200, 200, 200, 0.9);
+  padding: .5em 0em 0em .5em;
+  font-size: 1em;
 }
 
 #canvas_1 {
@@ -48,58 +50,72 @@ a {
 }
 
 #control {
-  position: static;
+  position: absolute;
   z-index: 1;
+  bottom: .5em;
+  left: .5em;
+  color: rgba(200, 200, 200, .6);
 }
 
-#cam_control > * {
-  display: block;
-  float: left;
-  margin: 2px 2px;
-  padding: .5em;
+#cam_control {
+  /* display: inline-block; */
+}
+
+.grid_main_wrapper {
+  display: inline-block;
+  vertical-align: middle;
   text-align: center;
-  
-  top: 10%;
-  
-  /* max-width: 200px; */
+  min-width: 6em;
+ 
 }
 
-#cam_control  .threex3 {
-  width: 75px;
-  height: 75px;
+.grid_container_cam {
+  display: grid;
+  grid-template-columns: auto auto auto;
 }
-#cam_control > table {
+
+.grid_container_cam2 {
+  grid-template-columns: auto;
+  padding-left: 2em;
+}
+
+.grid_item {
+  width: 2em;
+  height: 2em;
+  background: rgba(255, 255, 255, .2);
+}
+
+.grid_item > div {
+  width: 100%;
+  height: 100%;
+  color: black;
+}
+
+.grid_item >  button{
   padding: 0%;
-  margin-right: .5em;
-  /* border-width: 0px .5vw 0px 0px;
-  border-style: solid; */
-
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: black;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
 }
 
-#cam_control > table > tbody > tr > td {
-  width: 25px;
-  height: 25px;
-  padding: 0%;
-}
-
-/* #cam_control > table > tbody > tr > td  */
-
-#cam_control > table > tbody > tr > td > button{
-padding: 0%;
-width: 100%;
-height: 100%;
-background-color: #ddd;
-border: none;
-color: black;
-text-align: center;
-text-decoration: none;
-display: inline-block;
-cursor: pointer;
-border-radius: 16px;
+.grid_item > button:hover {
+  background: rgba(80,160,80, .5);
 }
 
 #cam_speed_settings {
   display: block;
+}
+
+#cam_speed_btn {
+  vertical-align: bottom;
+  background: transparent;
+  border: none;
+  color: rgba(200, 200, 200, .9);
 }
 
 #foot_wrap {
@@ -113,60 +129,68 @@ border-radius: 16px;
 
 #sim_menu {
   z-index: 1;
-  position: relative;
+  position: absolute;
   min-height: 2em;
   width: 100%;
   padding: .5em;
-  /* background: green; */
+  color: rgba(200, 200, 200, .9);
+  text-align: center;
+  vertical-align: center;
 }
 
 
 #objects_tab {
   cursor: pointer;
-  border: 1px solid black;
   margin: 0%;
-  padding: .5vw;
+  padding: .25em .1em 0em .1em;
   right: 2em;
   position: absolute;
-  
+  width: 5em;
+  height: 2em;
+  border-color: rgba(100, 100, 100, .6);
+  border-style: ridge;
 }
 
 #objects_dropdown {
   display: none;
   position: absolute;
   right: 2em;
-  top: 2em;
+  top: 3em;
 }
 
 
 .object_viewer {
-  background: orange;
-  width: 20em;
-  height: 5em;
-  border: 1px solid red;
-  padding: 1em;
+  width: 25em;
+  height: 3em;
+  border-color: rgba(100, 100, 100, .6);
+  border-style: ridge;
+  padding: .5em;
 }
 
-.object_viewer:hover {
-  background: #ddd;
-  cursor: pointer;
-
+.object_viewer span {
+  margin: 0em .25em; 
 }
 
-.selected_object {
-  background: green;
+.object_viewer button {
+  width: 5em;
+  height: 2.5em;
+  background: rgba(80, 80, 80, 0.0);
+  margin: .10em .25em;
+  color: rgba(200, 200, 200, .9);
+}
+
+.object_viewer button:hover {
+  background: rgba(80, 160, 80, 0.9);
 }
 
 .object_viewer * {
   display: block;
   float: left;
-  margin: .5em .5em;
+  
 }
 
-#objects_controls {
-  background: orange;
-  width: 20em;
-  height: 5em;
+.object_viewer button.t_btn_on  {
+  background: rgba(80, 160, 80, 0.6);
 }
 
 .thumb {
@@ -178,4 +202,6 @@ border-radius: 16px;
   max-width: 100%;
   max-height: 100%;
 }
+
+
 #objects_panel:hover #objects_dropdown {display: block;}

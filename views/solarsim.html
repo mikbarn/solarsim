@@ -1,104 +1,81 @@
 <div id="content_wrap">
-    <div id="sim_menu">
-        <div id="objects_panel">
-            <div id="objects_tab">Objects</div>
-            <div id="objects_dropdown">
-                <div id="objects_list">
 
-                </div>
-                <div id="objects_controls">
-                    <button id="object_target_btn">Target</button>
-                    <button id="object_auto_target_btn">Auto-Target</button>
-                    <button id="object_lock_btn">Lock To</button>
-                </div>
-            </div>
-
-        </div>
-
-    </div>
     <div id="main_can_wrap">
         <canvas id="canvas_1"></canvas>
         <div id="stats_overlay_1">
-            
+
+        </div>
+        <div id="sim_menu">
+            <div id="objects_panel">
+                <div id="objects_tab">Objects</div>
+                <div id="objects_dropdown">
+                    <div id="objects_list">
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div id="control">
+            <div id="cam_control">
+                <!-- <div class="cam_label"><span class="fa-lg fas fa-camera"></span></div> -->
+                <div class="grid_main_wrapper">
+                    <div class="control_desc">Movement</div>
+                    <div class="grid_container_cam">
+                        <div class="grid_item"></div>
+                        <div class="grid_item"><button id="cam_forward" class="fa-lg fas fa-angle-up"></button></div>
+                        <div class="grid_item"></div>
+                        <div class="grid_item">
+                            <td><button id="cam_strafe_left" class="fa-lg fas fa-angle-left"></button>
+                        </div>
+                        <div class="grid_item"></div>
+                        <div class="grid_item"><button id="cam_strafe_right" class="fa-lg fas fa-angle-right"></button>
+                        </div>
+                        <div class="grid_item"></div>
+                        <div class="grid_item"><button id="cam_back" class="fa-lg fas fa-angle-down"></button></div>
+                        <div class="grid_item"></div>
+                    </div>
+                </div>
+                <div class="grid_main_wrapper">
+                    <div class="control_desc">Altitude</div>
+                    <div class="grid_container_cam2">
+                        <div class="grid_item"><button id="cam_rise" class="fa-lg fas fa-angle-up"></button></div>
+                        <div class="grid_item"></div>
+                        <!-- <div class="fas fa-arrows-alt-v"></div> -->
+                        <div class="grid_item"><button id="cam_fall" class="fa-lg fas fa-angle-down"></button></div>
+                    </div>
+                </div>
+                <div class="grid_main_wrapper">
+                    <div class="control_desc">Panning</div>
+                    <div class="grid_container_cam">
+                        <div class="grid_item"></div>
+                        <div class="grid_item"><button id="cam_tilt_up" class="fa-lg fas fa-angle-up"></button></div>
+                        <div class="grid_item"></div>
+                        <div class="grid_item"><button id="cam_tilt_left" class="fa-lg fas fa-angle-left"></button>
+                        </div>
+                        <div class="grid_item"><button id="cam_recenter" class="fas fa-crosshairs"></button></div>
+                        <div class="grid_item"><button id="cam_tilt_right" class="fa-lg fas fa-angle-right"></button>
+                        </div>
+                        <div class="grid_item"></div>
+                        <div class="grid_item"><button id="cam_tilt_down" class="fa-lg fas fa-angle-down"></button>
+                        </div>
+                        <div class="grid_item"></div>
+                    </div>
+                </div>
+                
+                <button id="cam_speed_btn" class="fas fa-cog"></button>
+
+            </div>
+
         </div>
     </div>
+    <div>
 
-    <div id="control">
-        <div id="cam_control">
-            <!-- <div class="cam_label"><span class="fa-lg fas fa-camera"></span></div> -->
-            <table class="threex3">
-                <thead>
-                    <tr>
-                        <th colspan="3">move</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td></td>
-                        <td><button id="cam_forward" class="fa-lg fas fa-angle-up"></button></td>
-                        <td></td>
-
-                    </tr>
-                    <tr>
-                        <td><button id="cam_strafe_left" class="fa-lg fas fa-angle-left"></button></td>
-                        <td><span class="fas fa-arrows-alt"></span></td>
-                        <td><button id="cam_strafe_right" class="fa-lg fas fa-angle-right"></button></td>
-                    </tr>
-                    <tr>
-                        <td></td>
-                        <td><button id="cam_back" class="fa-lg fas fa-angle-down"></button></td>
-                        <td></td>
-
-                    </tr>
-                </tbody>
-            </table>
-            <table>
-                <thead>
-                    <tr>
-                        <th colspan="1">alt</th>
-                    </tr>
-                </thead>
-                <tr>
-                    <td><button id="cam_rise" class="fa-lg fas fa-angle-up"></button></td>
-                </tr>
-                <tr>
-                    <td><span class="fas fa-arrows-alt-v"></span></button></td>
-                </tr>
-                <tr>
-                    <td><button id="cam_fall" class="fa-lg fas fa-angle-down"></button></td>
-                </tr>
-            </table>
-
-            <table class="threex3">
-                <thead>
-                    <tr>
-                        <th colspan="3">pan</th>
-                    </tr>
-                </thead>
-                <tr>
-                    <td></td>
-                    <td><button id="cam_tilt_up" class="fa-lg fas fa-angle-up"></button></td>
-                    <td></td>
-                </tr>
-                <tr>
-                    <td><button id="cam_tilt_left" class="fa-lg fas fa-angle-left"></button></td>
-                    <td><button id="cam_recenter" class="fas fa-crosshairs"></button></td>
-                    <td><button id="cam_tilt_right" class="fa-lg fas fa-angle-right"></button></td>
-                </tr>
-                <tr>
-                    <td></td>
-                    <td><button id="cam_tilt_down" class="fa-lg fas fa-angle-down"></button></td>
-                    <td></td>
-                </tr>
-            </table>
-
-        </div>
         <div id="cam_speed_settings">
             <input id="rotate_speed" type="range" min=0.02 max=1.57 value=0.9 />
             <input id="movement_speed" type="range" min=0.1 max=100 value=4 />
         </div>
-    </div>
-    <div>
         <button id="pause_sim">Pause Simulation</button>
         <button id="toggle_shader">Toggle Shader</button>
     </div>

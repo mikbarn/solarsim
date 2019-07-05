@@ -1,4 +1,6 @@
-
+/*
+gl-matrix snippets adapted for ECMA script 2015
+*/
 const ARR = Float32Array;
 const EPSILON = 0.000001;
 const YUNIT = new ARR([0, 1, 0]);
