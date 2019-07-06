@@ -82,7 +82,8 @@ a {
 .grid_item {
   width: 2em;
   height: 2em;
-  background: rgba(255, 255, 255, .2);
+  /* background: rgba(255, 255, 255, .2); */
+  background: transparent;
 }
 
 .grid_item > div {
@@ -101,14 +102,12 @@ a {
   text-align: center;
   text-decoration: none;
   cursor: pointer;
+  background: rgba(255, 255, 255, .2);
+  border-radius: 1em;
 }
 
 .grid_item > button:hover {
   background: rgba(80,160,80, .5);
-}
-
-#cam_speed_settings {
-  display: block;
 }
 
 #cam_speed_btn {
@@ -116,6 +115,14 @@ a {
   background: transparent;
   border: none;
   color: rgba(200, 200, 200, .9);
+}
+
+#cam_speed_settings {
+  vertical-align: bottom;
+}
+
+.cam_speed {
+  display: inline-block;
 }
 
 #foot_wrap {

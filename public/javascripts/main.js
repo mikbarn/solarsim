@@ -103,7 +103,13 @@ class Camera {
         this._maxZ = Infinity;
         this.p_mat = Mat4.perspective(Mat4.identity(), this._fovY, this._aspect, 1.0,  this._maxZ);
         this._slerp = {start: null, end: null, t: 0.0};
-        
+        this.rotate_speed = 1.0;
+        this.move_speed = 1.0
+        this.percent_c = 1.0;
+        this._speed_settings_displayed = true;
+        $("#cam_speed_btn").click(this.toggle_speed_settings);
+        this.toggle_speed_settings();
+
         let cam = this;
         let neg = Vec3.negate;
        
@@ -117,17 +123,17 @@ class Camera {
         }
         let move_slider = document.getElementById("movement_speed");
         Object.keys(settings).forEach((k) => {
-            document.getElementById(k).onmousedown = (ev) => {Vec3.scale(cam.velocity, settings[k](), parseFloat(move_slider.value)); };
+            document.getElementById(k).onmousedown = (ev) => {Vec3.scale(cam.velocity, settings[k](), cam.move_speed); };
             let f = (ev) => {cam.velocity = [0,0,0]; Tracking.disable_lock() };
             document.getElementById(k).onmouseup = f;
             document.getElementById(k).onmouseleave = f;
         });
-        var get_rot_speed = function() { return parseFloat(document.getElementById("rotate_speed").value) };
+        
         let angles = {
-            cam_tilt_up: (ev) => {cam.omega_x = get_rot_speed()},
-            cam_tilt_down: (ev) => {cam.omega_x = -get_rot_speed()},
-            cam_tilt_left: (ev) => {cam.omega_y = get_rot_speed()},
-            cam_tilt_right: (ev) => {cam.omega_y = -get_rot_speed()},  
+            cam_tilt_up: (ev) => {cam.omega_x = cam.rotate_speed},
+            cam_tilt_down: (ev) => {cam.omega_x = -cam.rotate_speed},
+            cam_tilt_left: (ev) => {cam.omega_y = cam.rotate_speed},
+            cam_tilt_right: (ev) => {cam.omega_y = -cam.rotate_speed},  
         }
         Object.keys(angles).forEach((k) => {
             document.getElementById(k).onmousedown = angles[k];
@@ -155,6 +161,11 @@ class Camera {
         };
     }
 
+    toggle_speed_settings() {
+        this._speed_settings_displayed = !this._speed_settings_displayed;
+        $("#cam_speed_settings").css("display", this._speed_settings_displayed? "inline-block": "none");
+    }
+
     set_dirs() {
         let rot_mat = this.rot_mat;
         this.up[0] = rot_mat[4];
@@ -171,6 +182,9 @@ class Camera {
     }
 
     update(delta) {
+        this.rotate_speed = parseFloat($('#rotate_speed').val() / 180 * Math.PI).toFixed(2);
+        this.move_speed = parseFloat($('#movement_speed').val()).toFixed(2);
+        this.percent_c = (this.move_speed/Fixed.lightspeed_mps).toFixed(2)
         this.pos = Vec3.add(this.pos, this.pos, Vec3.scale(Vec3.create(), this.velocity, delta));
         if (this.omega_x !== 0.0 || this.omega_y !== 0.0) {
             let d_theta_x = this.omega_x*delta;
@@ -511,19 +525,24 @@ var Tracking = {
 }
 var DisplayStats = {
     vars: {
-        cam2sun: Vec3.create()
+        cam2sun: Vec3.create(),
     },
     elements: {
-        cam2sun: $('<span/>')
+        cam2sun: $('<div/>'),
+        time2sun: $('<div/>')
     },
     setup: () => {
-        $('#stats_overlay_1').append(DisplayStats.elements.cam2sun);
+        Object.values(DisplayStats.elements).forEach((v,i,a) => {
+            $('#stats_overlay_1').append(v); 
+        });    
     },
     update: () => {
         Vec3.subtract(DisplayStats.vars.cam2sun, Vec3.create(), cam.pos);
-        let miles = Vec3.len(DisplayStats.vars.cam2sun) * EARTH_RADIUS;
+        let units = Vec3.len(DisplayStats.vars.cam2sun);
+        let miles = units * EARTH_RADIUS;
 
-        DisplayStats.elements.cam2sun.html('Distance to Sun: ' + parseFloat(miles).toFixed(0) + ' mi');
+        DisplayStats.elements.cam2sun.html(`Distance to Sun: ${parseFloat(miles).toFixed(0)} mi`);
+        DisplayStats.elements.time2sun.html(`Time to Sun: ${(units/cam.move_speed / 60).toFixed(2)} minutes`);
     }
 
 }
@@ -537,12 +556,14 @@ async function start() {
     let earth = new Planet(Vec3.create(0,0,Fixed.dist.e2s), Vec3.create(), .1, Fixed.rad.earth, .4, resources.images.earth, {name: 'Earth'}); 
     let moon = new Planet(Vec3.create(Fixed.dist.m2e,0,Fixed.dist.e2s), Vec3.create(), .3, Fixed.rad.moon, 0, resources.images.moon, {name: 'Moon'});
     let sun = new Planet(Vec3.create(0,0,0), Vec3.create(), .01, Fixed.rad.sun, 0, resources.images.sun, {name: 'Sun'});
-    sun.instrinsic = 2.5;
+    sun.instrinsic = 10.0;
     earth.instrinsic = .5;
     let objs = [earth, moon, sun];
     let renderer = new Renderer(gl, objs);
     handle = window.setInterval(()=> {
         try { 
+            $("#rotate_speed_label").html(`Pan speed: ${cam.rotate_speed} rad/s`);
+            $("#movement_speed_label").html(`Movement speed: ${(cam.move_speed * EARTH_RADIUS).toFixed(2)} mps (${cam.percent_c}c)`);
             DisplayStats.update();
             timer.start(); 
             cam.update(.1);

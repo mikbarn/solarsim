@@ -63,19 +63,24 @@
                         <div class="grid_item"></div>
                     </div>
                 </div>
-                
+
                 <button id="cam_speed_btn" class="fas fa-cog"></button>
-
+                <div id="cam_speed_settings">
+                    <div>
+                        <input id="rotate_speed" class="cam_speed" type="range" min=01 max=360 value=30 />
+                        <span id="rotate_speed_label" class="cam_speed"></span>
+                    </div>
+                    <div>
+                        <input id="movement_speed" class="cam_speed" type="range" min=0.1 max=467 value=46.7 />
+                        <span id="movement_speed_label" class="cam_speed"></span>
+                    </div>
+                </div>
             </div>
-
         </div>
     </div>
     <div>
 
-        <div id="cam_speed_settings">
-            <input id="rotate_speed" type="range" min=0.02 max=1.57 value=0.9 />
-            <input id="movement_speed" type="range" min=0.1 max=100 value=4 />
-        </div>
+
         <button id="pause_sim">Pause Simulation</button>
         <button id="toggle_shader">Toggle Shader</button>
     </div>

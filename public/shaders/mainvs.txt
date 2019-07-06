@@ -21,6 +21,7 @@ void main() {
     vec3 normal = normalize(mat3(model_matrix) * a_position.xyz);
     gl_Position = view_matrix * world_pos;
     gl_PointSize = 2.0;
-    v_bright =  clamp(dot(rev_light_dir, normal)+u_intrinsic_bright, 0.20, 10.0);
+    v_bright = dot(rev_light_dir, normal)  * 2.5;
+    v_bright =  clamp(v_bright + u_intrinsic_bright, 0.20, 10.0);
     
 }
