@@ -1,20 +1,38 @@
+html {
+  background: radial-gradient(rgb(0, 0, 0), rgb(163, 157, 157));
+}
+
 body {
-  /* padding: 50px; */
+  /* position: relative; */
+  margin: 0 0;
+}
+
+#body_wrap {
   font: 14px "Verdana", Helvetica, Arial, sans-serif;
-  /* background-image: url("../images/2k_stars.jpg"); */
-  /* background-color: rgba(.2, .2, .2, .2); */
   width: 90%;
   margin: auto;
-  border-width: 0px 2px;
-  border-color: black;
+  border-width: 0px 3px;
+  border-color: rgb(71, 68, 66);
   border-style: solid;
+  margin-bottom: 0;
 
 }
 
 #head_wrap {
   border-bottom: 2px solid black;
-  width: 100%;
-  margin-bottom: 2px;
+  margin: 0px 0px 2px 0px;
+  padding: 2em 1em .5em 1em;
+  color: rgba(200, 200, 200, 0.9);
+  background-image: linear-gradient(to top, rgb(0, 0, 0), rgb(200, 200,200));
+}
+
+#foot_wrap {
+  height: 100%;
+  padding-top: 10em;
+  text-align: right;
+  padding-right: 5em;
+  background-image: linear-gradient(to bottom, rgb(0, 0, 0), rgb(200, 200,200));  
+  border-top: 1px solid black;
 }
 
 a {
@@ -125,15 +143,6 @@ a {
   display: inline-block;
 }
 
-#foot_wrap {
-  clear: both;
-  width:100%;
-}
-#foot_wrap > div {
-  float: left;
-  min-width:40%;
-}
-
 #sim_menu {
   z-index: 1;
   position: absolute;
@@ -145,17 +154,35 @@ a {
   vertical-align: center;
 }
 
-
-#objects_tab {
+.sim_menu_tab {
   cursor: pointer;
-  margin: 0%;
   padding: .25em .1em 0em .1em;
-  right: 2em;
   position: absolute;
-  width: 5em;
+  width: 8em;
   height: 2em;
   border-color: rgba(100, 100, 100, .6);
   border-style: ridge;
+}
+
+#options_tab {
+  right: 12em;
+}
+
+#options_dropdown {
+  display: none;
+  position: absolute;
+  right: 12em;
+  top: 3em;
+}
+
+#options_dropdown > button {
+  display: block;
+}
+
+
+#objects_tab {
+  margin: 0%;  
+  right: 2em;
 }
 
 #objects_dropdown {
@@ -211,4 +238,6 @@ a {
 }
 
 
-#objects_panel:hover #objects_dropdown {display: block;}
+#objects_panel:hover #objects_dropdown {display: block; }
+#options_panel:hover #options_dropdown {display: block; }
+
