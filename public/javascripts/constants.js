@@ -17,6 +17,20 @@ const Fixed = {
         m2e: MOON_TO_EARTH/EARTH_RADIUS
     },
     lightspeed_mps: LIGHT_SPEED/EARTH_RADIUS,
+
+    au_2_units: (au) => {
+        return au * Fixed.dist.e2s;
+    },
+    rel: {
+        mercury: {dist: .39, rad: .383},
+        venus: {dist: .723, rad: .949},
+        mars: {dist: 1.524, rad: .532},
+        jupiter: {dist: 5.203, rad: 11.21},
+        saturn: {dist: 9.659, rad: 9.45},
+        uranus: {dist: 19.539, rad: 4.01},
+        neptune: {dist: 30.06, rad: 3.88},
+        pluto: {dist: 39.53, rad: .186},
+    },
 }
 
 export {Fixed, EARTH_RADIUS};

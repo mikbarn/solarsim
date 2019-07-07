@@ -17,11 +17,13 @@ void main() {
     v_tex_coord = a_tex_coord;
     v_col_pos = a_position.xyz;
     vec4 world_pos = model_matrix * a_position;
-    vec3 rev_light_dir = normalize((u_world_light_pos - world_pos.xyz));
+    vec3 rev_light_dir = (u_world_light_pos - world_pos.xyz);
+    float dist_to_light = length(rev_light_dir);
+    rev_light_dir = rev_light_dir / dist_to_light;
     vec3 normal = normalize(mat3(model_matrix) * a_position.xyz);
     gl_Position = view_matrix * world_pos;
     gl_PointSize = 2.0;
-    v_bright = dot(rev_light_dir, normal)  * 2.5;
+    v_bright = dot(rev_light_dir, normal)  * 2.5 * (1.0 - (dist_to_light/800000.0));
     v_bright =  clamp(v_bright + u_intrinsic_bright, 0.20, 10.0);
     
 }
