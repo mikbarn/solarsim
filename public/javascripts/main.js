@@ -81,7 +81,7 @@ resources.load_image('moon.jpg', 'moon');
 resources.load_image('sun.jpg', 'sun');
 
 SKY_IMAGES.forEach((v, i, a) => {
-    resources.load_image(`skybox/${v}.png`, v);
+    resources.load_image(`skybox_hr/${v}.png`, v);
 });
 
 PLANETS.forEach((v,i,a) => {
@@ -110,11 +110,23 @@ class Camera {
         this.move_speed = 1.0
         this.percent_c = 1.0;
         this._speed_settings_displayed = true;
+        this._damper_r = 1.0;
         $("#cam_speed_btn").click(this.toggle_speed_settings);
         this.toggle_speed_settings();
 
         let cam = this;
         let neg = Vec3.negate;
+
+        this._drag = {begin: [0,0], dragging: false};
+
+        $('#main_can_wrap').mousedown((ev) => {cam._drag.dragging = true; cam._drag.begin = [ev.screenX, ev.screenY];});
+        $('#main_can_wrap').mouseup((ev) => {
+            cam._drag.dragging = false;
+            let d = ev.screenX - this._drag.begin[0];
+           this.omega_y = d/100;
+           this._damper_r = .7;
+        });
+        $('#main_can_wrap').mouseleave((ev) => {cam._drag.dragging = false;});
 
         let settings = {
             cam_forward: () => neg(cam.dir),
@@ -124,7 +136,7 @@ class Camera {
             cam_rise: () => cam.up,
             cam_fall: () => neg(cam.up),
         }
-        let move_slider = document.getElementById("movement_speed");
+        
         Object.keys(settings).forEach((k) => {
             document.getElementById(k).onmousedown = (ev) => { Vec3.scale(cam.velocity, settings[k](), cam.move_speed); };
             let f = (ev) => { cam.velocity = [0, 0, 0]; Tracking.disable_lock() };
@@ -139,7 +151,7 @@ class Camera {
             cam_tilt_right: (ev) => { cam.omega_y = -cam.rotate_speed },
         }
         Object.keys(angles).forEach((k) => {
-            document.getElementById(k).onmousedown = angles[k];
+            document.getElementById(k).onmousedown = (ev) => {angles[k](ev); this._damper_r = 1.0 };
             let f = (ev) => { cam.omega_x = 0.0; cam.omega_y = 0.0; Tracking.disable_auto_targeting() };
             document.getElementById(k).onmouseup = f;
             //document.getElementById(k).onmouseleave = f;
@@ -192,13 +204,18 @@ class Camera {
     }
 
     update(delta) {
-        this.rotate_speed = parseFloat($('#rotate_speed').val() / 180 * Math.PI).toFixed(2);
-        this.move_speed = parseFloat($('#movement_speed').val()).toFixed(2);
-        this.percent_c = (this.move_speed / Fixed.lightspeed_mps).toFixed(2)
+        this.rotate_speed = parseFloat($('#rotate_speed').val());
+        this.move_speed = (this.percent_c * Fixed.lightspeed_mps).toFixed(4);
+        this.percent_c = parseFloat($('#movement_speed').val()).toFixed(2);
         this.pos = Vec3.add(this.pos, this.pos, Vec3.scale(Vec3.create(), this.velocity, delta));
         if (this.omega_x !== 0.0 || this.omega_y !== 0.0) {
             let d_theta_x = this.omega_x * delta;
             let d_theta_y = this.omega_y * delta;
+            this.omega_y *= this._damper_r;
+            if (Math.abs(this.omega_y) < .001) {
+                this._damper_r = 1.0;
+                this.omega_y = 0.0;
+            }
             let rot_mat = this.rot_mat;
 
             Mat4.rotateY(rot_mat, rot_mat, d_theta_y);
@@ -211,7 +228,7 @@ class Camera {
         if (Tracking.locked_to_js_obj) {
             let to = Vec3.subtract(Vec3.create(), Tracking.locked_to_js_obj.pos, this.pos);
             Vec3.negate(to);
-            let dist = Vec3.len(to) - Tracking.locked_to_js_obj.radius - 2;
+            let dist = Vec3.len(to) - Math.max((3*Tracking.locked_to_js_obj.radius), 2.0);
             Vec3.normalize(to, to);
             Vec3.scale(to, to, dist / 10);
             if (dist > .0001) {
@@ -444,10 +461,9 @@ class Renderer {
             gl.drawElements(gl.LINE_STRIP, obj.triangle_mesh.tri_indices.length, gl.UNSIGNED_SHORT, 0);
         }
     }
-        
-    draw_skybox(gl) {
+
+    load_skybox(gl) {
         var { pos_att_loc, prog, texture, sampler_cube_loc, view_mat_loc, texture_targets, v_buffer, scale_matrix } = this.sky;
-        gl.useProgram(prog);
         gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
 
         SKY_IMAGES.forEach((v, i, a) => {
@@ -458,6 +474,12 @@ class Renderer {
         gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    }
+        
+    draw_skybox(gl) {
+        var { pos_att_loc, prog, texture, sampler_cube_loc, view_mat_loc, texture_targets, v_buffer, scale_matrix } = this.sky;
+        gl.useProgram(prog);
+        
         let m = Mat4.identity();
         Mat4.multiply(m, m, cam.rot_mat);
         Mat4.invert(m, m);
@@ -537,7 +559,8 @@ var DisplayStats = {
         let miles = units * EARTH_RADIUS;
 
         DisplayStats.elements.cam2sun.html(`Distance to Sun: ${parseFloat(miles).toFixed(0)} mi`);
-        DisplayStats.elements.time2sun.html(`Time to Sun: ${(units / cam.move_speed / 60).toFixed(2)} minutes`);
+        DisplayStats.elements.time2sun.html(`Time to Sun: ${(units / cam.move_speed / 60).toFixed(2)} minutes @${cam.percent_c}<i>c</i>`);
+        return miles;
     }
 
 }
@@ -553,7 +576,7 @@ async function start() {
     let earth = new Planet(Vec3.create(0, 0, Fixed.dist.e2s), Vec3.create(), .1, Fixed.rad.earth, .4, resources.images.earth, { name: 'Earth' });
     let moon = new Planet(Vec3.create(Fixed.dist.m2e, 0, Fixed.dist.e2s), Vec3.create(), .3, Fixed.rad.moon, 0, resources.images.moon, { name: 'Moon' });
     let sun = new Planet(Vec3.create(0, 0, 0), Vec3.create(), .01, Fixed.rad.sun, 0, resources.images.sun, { name: 'Sun' });
-    sun.instrinsic = 10.0;
+   
     earth.instrinsic = .5;
     let objs = [earth, moon, sun];
     
@@ -564,11 +587,14 @@ async function start() {
         console.log(v, Vec3.len(p.pos));
     });
     let renderer = new Renderer(gl, objs);
+    renderer.load_skybox(gl);
     handle = window.setInterval(() => {
         try {
             $("#rotate_speed_label").html(`Pan speed: ${cam.rotate_speed} rad/s`);
             $("#movement_speed_label").html(`Movement speed: ${(cam.move_speed * EARTH_RADIUS).toFixed(2)} mps (${cam.percent_c}c)`);
-            DisplayStats.update();
+            let m = DisplayStats.update();
+  
+            sun.instrinsic = Math.min(10.0, 2.0 + (5.0 * ((m/4000000))));
             timer.start();
             cam.update(.1);
             let w = gl.canvas.clientWidth, h = gl.canvas.clientHeight;
@@ -611,9 +637,9 @@ async function start() {
         d.append(d2);
         d.append("<span>" + v.display.name + "</span>");
 
-        let b1 = $("<button/>").addClass("transparent_button").html("Target");
-        let b2 = $("<button/>").addClass("transparent_button").html("Auto Target");
-        let b3 = $("<button/>").addClass("transparent_button").html("Attach To");
+        let b1 = $("<button/>").addClass("transparent_button").html("Look At");
+        let b2 = $("<button/>").addClass("transparent_button").html("Auto Look At");
+        let b3 = $("<button/>").addClass("transparent_button").html("Auto Go To");
 
         b1.click((ev) => { Tracking.target(v) });
         b2.click((ev) => { Tracking.enable_auto_targeting(b2, v) });
@@ -637,6 +663,10 @@ document.addEventListener("DOMContentLoaded", (ev) => {
         }
     });
     DisplayStats.setup();
+    document.getElementById('movement_speed').step = 0.1;
+    document.getElementById('movement_speed').value = 1.0;
+    document.getElementById('rotate_speed').step = 0.1;
+    document.getElementById('rotate_speed').value = 0.5;
     start();
 
 });
