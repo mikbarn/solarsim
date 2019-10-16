@@ -44,7 +44,6 @@ function genUnitSphereMesh(lat, long) {
         tri_idxs.push(0, i+1, i+2);
     }
     
-    console.log('sp idx ' + sp_idx);
     for(let i=0; i<lat-1; i++) {
         let k = 1+(vertices_per_lat*i);
         //console.log('K ' + k)
@@ -78,7 +77,6 @@ function genUnitSphereMesh(lat, long) {
     //     //lines.push(...p1,...p2,)
     // }
 
-    console.log('TEXTUREING!!!')
     let tex_coords = [];
     for (let i=0; i<vertices.length; i=i+3) {
         let x = vertices[i];

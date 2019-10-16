@@ -117,14 +117,27 @@ class Camera {
         let cam = this;
         let neg = Vec3.negate;
 
-        this._drag = {begin: [0,0], dragging: false};
+        this._drag = {begin: [0,0], dragging: false, able: true};
+
+        $('#control').mouseenter((ev) => {cam._drag.able = false});
+        $('#control').mouseleave((ev) => {cam._drag.able = true});
 
         $('#main_can_wrap').mousedown((ev) => {cam._drag.dragging = true; cam._drag.begin = [ev.screenX, ev.screenY];});
         $('#main_can_wrap').mouseup((ev) => {
             cam._drag.dragging = false;
+            if (!cam._drag.able) {
+                return;
+            }
             let d = ev.screenX - this._drag.begin[0];
-           this.omega_y = d/100;
-           this._damper_r = .7;
+            let dY = ev.screenY - this._drag.begin[1];
+            let is_Y = Math.abs(d) > Math.abs(dY);
+            if (d*d + dY*dY < 100) {
+                return;
+            }
+            this.omega_y = d/100;
+            this.omega_x = dY/100;
+            this._damper_r = .7;
+            Tracking.disable_auto_targeting();
         });
         $('#main_can_wrap').mouseleave((ev) => {cam._drag.dragging = false;});
 
@@ -212,9 +225,17 @@ class Camera {
             let d_theta_x = this.omega_x * delta;
             let d_theta_y = this.omega_y * delta;
             this.omega_y *= this._damper_r;
-            if (Math.abs(this.omega_y) < .001) {
-                this._damper_r = 1.0;
+            this.omega_x *= this._damper_r;
+            let o_x = Math.abs(this.omega_y), o_y = Math.abs(this.omega_x);
+            let limit = .01;
+            if (o_x < limit) {     
                 this.omega_y = 0.0;
+            }
+            if (o_y < limit) {       
+                this.omega_x = 0.0;
+            }
+            if (o_x + o_y < limit) {
+                this._damper_r = 1.0;
             }
             let rot_mat = this.rot_mat;
 
@@ -573,6 +594,7 @@ async function start() {
 
     await resources.wait_until_loaded();
 
+
     let earth = new Planet(Vec3.create(0, 0, Fixed.dist.e2s), Vec3.create(), .1, Fixed.rad.earth, .4, resources.images.earth, { name: 'Earth' });
     let moon = new Planet(Vec3.create(Fixed.dist.m2e, 0, Fixed.dist.e2s), Vec3.create(), .3, Fixed.rad.moon, 0, resources.images.moon, { name: 'Moon' });
     let sun = new Planet(Vec3.create(0, 0, 0), Vec3.create(), .01, Fixed.rad.sun, 0, resources.images.sun, { name: 'Sun' });
@@ -584,8 +606,9 @@ async function start() {
         let {dist, rad} = Fixed.rel[v];
         let p = new Planet(Vec3.create(0, 0, Fixed.au_2_units(dist)), Vec3.create(), .1, rad, 0, resources.images[v], {name: v});
         objs.push(p);
-        console.log(v, Vec3.len(p.pos));
+        //console.log(v, Vec3.len(p.pos));
     });
+    $('#loader_canvas').remove();
     let renderer = new Renderer(gl, objs);
     renderer.load_skybox(gl);
     handle = window.setInterval(() => {
