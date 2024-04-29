@@ -1,1 +1,1 @@
-This is a project for playing with Node.js and WebGL. Supposed to be 3D solar system sim POC. The code could be a lot more organized/cleaned up and documented, but I did not have plans to collaborate.
+This is a project for playing with Node.js and WebGL. Supposed to be 3D solar system sim POC.
