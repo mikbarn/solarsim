@@ -5,7 +5,6 @@ A lightweight **3D Solar System simulation Proof-of-Concept (POC)** built to exp
 ## 🚀 Current Features
 
 *   **Planetary Rendering:** Real-time 3D rendering of core celestial bodies.
-*   **Orbital Mechanics:** Animated planetary translation loops simulating orbital movement.
 *   **Camera Tracking:** Dynamic camera system that moves dynamically around the system environment.
 *   **Node.js Backend:** Minimal local development server environment to serve frontend static assets.
 
